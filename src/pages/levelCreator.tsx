@@ -1,17 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import Matter from "matter-js";
-
-interface LineSegment {
-  start: { x: number; y: number };
-  end: { x: number; y: number };
-}
-
-interface PlatformerGameProps {
-  lines?: LineSegment[];
-  initialLevel?: SavedLevel;
-  onRestart?: () => void;
-  onReturnToLevelSelect?: () => void;
-}
+import { ASSETS, SPRITE_SIZES } from "../gameAssets";
 
 const PLATFORM_THICKNESS = 10;
 
@@ -34,44 +23,6 @@ type SpawnPoint = {
   y: number;
 };
 
-const makePlatformFromEndpoints = (
-  start: { x: number; y: number },
-  end: { x: number; y: number },
-  thickness: number,
-  type: PlatformType
-) => {
-  const centerX = (start.x + end.x) / 2;
-  const centerY = (start.y + end.y) / 2;
-  const length = Math.hypot(end.x - start.x, end.y - start.y);
-  const angle = Math.atan2(end.y - start.y, end.x - start.x);
-
-  let fillStyle = "#9B59B6"; // temporary - purple
-  if (type === "permanent") fillStyle = "#3498DB"; // permanent - blue
-  if (type === "ground") fillStyle = "#8B4513"; // ground - brown
-
-  const platform = Matter.Bodies.rectangle(
-    centerX,
-    centerY,
-    length,
-    thickness,
-    {
-      isStatic: true,
-      angle,
-      render: { fillStyle },
-      friction: 1,
-      label: "platform",
-    }
-  );
-
-  (platform as any).platformMeta = {
-    start,
-    end,
-    thickness,
-  } satisfies PlatformMeta;
-
-  return platform;
-};
-
 type ToolMode =
   | "select"
   | "temporaryPlatform"
@@ -92,7 +43,6 @@ type SavedPlatform = {
 
 type SavedFlag = {
   playerType: 1 | 2;
-  pole: { x: number; y: number };
   flag: { x: number; y: number };
   raised: boolean;
 };
@@ -105,32 +55,89 @@ export type SavedLevel = {
 };
 
 interface FlagData {
-  pole: Matter.Body;
   flag: Matter.Body;
   raised: boolean;
   playerType: 1 | 2;
 }
 
-export const PlatformerGame: React.FC<PlatformerGameProps> = ({
-  lines = [],
-  initialLevel,
-  onRestart,
-  onReturnToLevelSelect,
-}) => {
+interface LevelCreatorProps {
+  onTestLevel?: (level: SavedLevel) => void;
+}
+
+const makePlatformFromEndpoints = (
+  start: { x: number; y: number },
+  end: { x: number; y: number },
+  thickness: number,
+  type: PlatformType
+) => {
+  const centerX = (start.x + end.x) / 2;
+  const centerY = (start.y + end.y) / 2;
+  const length = Math.hypot(end.x - start.x, end.y - start.y);
+  const angle = Math.atan2(end.y - start.y, end.x - start.x);
+
+  let renderOptions: any = {};
+
+  if (type === "ground") {
+    renderOptions = {
+      sprite: {
+        texture: ASSETS.GROUND,
+        xScale: length/500,
+        yScale: thickness / 64,
+      },
+    };
+  } else if (type === "permanent") {
+    renderOptions = { fillStyle: "#3498DB" };
+  } else {
+    // temporary
+    renderOptions = { fillStyle: "#9B59B6" };
+  }
+
+  const platform = Matter.Bodies.rectangle(
+    centerX,
+    centerY,
+    length,
+    thickness,
+    {
+      isStatic: true,
+      angle,
+      render: renderOptions,
+      friction: 1,
+      label: "platform",
+    }
+  );
+
+  (platform as any).platformMeta = {
+    start,
+    end,
+    thickness,
+  } satisfies PlatformMeta;
+
+  return platform;
+};
+
+const createSpawnMarker = (x: number, y: number, playerType: 1 | 2) => {
+  const color = playerType === 1 ? "#00FF00" : "#FFA500";
+  const marker = Matter.Bodies.circle(x, y, 15, {
+    isStatic: true,
+    render: {
+      fillStyle: color,
+      strokeStyle: "#000000",
+      lineWidth: 3,
+    },
+    isSensor: true,
+    label: `spawn${playerType}Marker`,
+  });
+  return marker;
+};
+
+export const LevelCreator: React.FC<LevelCreatorProps> = ({ onTestLevel }) => {
   const canvasRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<Matter.Engine | null>(null);
+  const renderRef = useRef<Matter.Render | null>(null);
   const player1Ref = useRef<Matter.Body | null>(null);
   const player2Ref = useRef<Matter.Body | null>(null);
-  const renderRef = useRef<Matter.Render | null>(null);
   const attemptStartedRef = useRef(false);
-  const keysRef = useRef({
-    a: false,
-    d: false,
-    w: false,
-    left: false,
-    right: false,
-    up: false,
-  });
+
   const player1GroundedRef = useRef(false);
   const player2GroundedRef = useRef(false);
   const player1LockedPositionRef = useRef<{ x: number; y: number } | null>(
@@ -142,6 +149,19 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
   const player1GroundNormalRef = useRef<{ x: number; y: number } | null>(null);
   const player2GroundNormalRef = useRef<{ x: number; y: number } | null>(null);
 
+  const player1AnimFrameRef = useRef(0);
+  const player2AnimFrameRef = useRef(0);
+  const animationTickRef = useRef(0);
+
+  const keysRef = useRef({
+    a: false,
+    d: false,
+    w: false,
+    left: false,
+    right: false,
+    up: false,
+  });
+
   const [firstClickPoint, setFirstClickPoint] = useState<{
     x: number;
     y: number;
@@ -149,8 +169,8 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
 
   const [toolMode, setToolMode] = useState<ToolMode>("select");
   const [menuOpen, setMenuOpen] = useState(true);
-  const [gameWon, setGameWon] = useState(false);
   const [attemptStarted, setAttemptStarted] = useState(false);
+  const [gameWon, setGameWon] = useState(false);
   const [saveFilename, setSaveFilename] = useState("");
 
   const flagsRef = useRef<FlagData[]>([]);
@@ -188,13 +208,10 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
 
   const logFlag = (
     playerType: 1 | 2,
-    poleX: number,
-    poleY: number,
     flagX: number,
     flagY: number
   ) => {
     console.log(`[PLACE FLAG P${playerType}]`, {
-      pole: { x: r2(poleX), y: r2(poleY) },
       flag: { x: r2(flagX), y: r2(flagY) },
     });
   };
@@ -206,8 +223,7 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
     });
   };
 
-  const dumpAllPlaced = () => {
-    // Only save permanent platforms and ground (exclude temporary)
+  const buildLevel = (): SavedLevel => {
     const platforms: SavedPlatform[] = platformsRef.current
       .filter((p) => p.type !== "temporary")
       .map((p) => ({
@@ -219,9 +235,8 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
 
     const flags: SavedFlag[] = flagsRef.current.map((f) => ({
       playerType: f.playerType,
-      pole: { x: r2(f.pole.position.x), y: r2(f.pole.position.y) },
       flag: { x: r2(f.flag.position.x), y: r2(f.flag.position.y) },
-      raised: f.raised,
+      raised: false,
     }));
 
     const level: SavedLevel = {
@@ -235,71 +250,56 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
         : undefined,
     };
 
-    console.log("[LEVEL JSON]", level);
     return level;
   };
 
-  const createSpawnMarker = (x: number, y: number, playerType: 1 | 2) => {
-    const color = playerType === 1 ? "#00FF00" : "#FFA500";
-    const marker = Matter.Bodies.circle(x, y, 15, {
-      isStatic: true,
-      render: {
-        fillStyle: color,
-        strokeStyle: "#000000",
-        lineWidth: 3,
-      },
-      isSensor: true,
-      label: `spawn${playerType}Marker`,
+  const checkElementsBelowGround = (): boolean => {
+    const groundPlatforms = platformsRef.current.filter(
+      (p) => p.type === "ground"
+    );
+
+    if (groundPlatforms.length === 0) return true;
+
+    const pointsToCheck: Array<{ x: number; y: number; name: string }> = [];
+
+    if (player1SpawnRef.current) {
+      pointsToCheck.push({
+        ...player1SpawnRef.current,
+        name: "Player 1 spawn",
+      });
+    }
+    if (player2SpawnRef.current) {
+      pointsToCheck.push({
+        ...player2SpawnRef.current,
+        name: "Player 2 spawn",
+      });
+    }
+
+    flagsRef.current.forEach((flag, idx) => {
+      pointsToCheck.push({
+        x: flag.flag.position.x,
+        y: flag.flag.position.y,
+        name: `Player ${flag.playerType} flag ${idx + 1}`,
+      });
     });
-    return marker;
+
+    for (const point of pointsToCheck) {
+      for (const groundPlatform of groundPlatforms) {
+        const body = groundPlatform.body;
+
+        if (point.x >= body.bounds.min.x && point.x <= body.bounds.max.x) {
+          if (point.y > body.bounds.max.y) {
+            alert(`Error: ${point.name} is below ground! Please reposition it.`);
+            return false;
+          }
+        }
+      }
+    }
+
+    return true;
   };
-    const checkElementsBelowGround = (): boolean => {
-        const groundPlatforms = platformsRef.current.filter((p) => p.type === "ground");
-        
-        if (groundPlatforms.length === 0) return true; // No ground to check against
-        
-        // Check spawn points
-        const pointsToCheck: Array<{ x: number; y: number; name: string }> = [];
-        
-        if (player1SpawnRef.current) {
-            pointsToCheck.push({ ...player1SpawnRef.current, name: "Player 1 spawn" });
-        }
-        if (player2SpawnRef.current) {
-            pointsToCheck.push({ ...player2SpawnRef.current, name: "Player 2 spawn" });
-        }
-        
-        // Check flags
-        flagsRef.current.forEach((flag, idx) => {
-            pointsToCheck.push({
-            x: flag.pole.position.x,
-            y: flag.pole.position.y,
-            name: `Player ${flag.playerType} flag ${idx + 1}`,
-            });
-        });
-        
-        // For each point, check if it's below any ground platform
-        for (const point of pointsToCheck) {
-            for (const groundPlatform of groundPlatforms) {
-            const body = groundPlatform.body;
-            
-            // Check if point is horizontally within the platform bounds
-            if (point.x >= body.bounds.min.x && point.x <= body.bounds.max.x) {
-                // Check if point is below the platform
-                // We check against the top of the platform (min.y)
-                if (point.y > body.bounds.max.y) {
-                alert(`Error: ${point.name} is below ground! Please reposition it.`);
-                return false;
-                }
-            }
-            }
-        }
-        
-        return true;
-    };
 
   const handleAttemptClear = () => {
-    // Validation
-    
     if (!player1SpawnRef.current) {
       alert("Error: Player 1 spawn point is not set!");
       return;
@@ -321,7 +321,6 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
       return;
     }
 
-    //Check no elements below ground
     if (!checkElementsBelowGround()) {
       return;
     }
@@ -331,15 +330,21 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
       const player1 = Matter.Bodies.rectangle(
         player1SpawnRef.current.x,
         player1SpawnRef.current.y,
-        30,
-        40,
+        SPRITE_SIZES.PLAYER_WIDTH,
+        SPRITE_SIZES.PLAYER_HEIGHT,
         {
           friction: 1,
           frictionAir: 0.01,
           frictionStatic: 10,
           restitution: 0,
           inertia: Infinity,
-          render: { fillStyle: "#00FF00" },
+          render: {
+            sprite: {
+              texture: ASSETS.PLAYER1_IDLE,
+              xScale: 0.1,
+              yScale: 0.1,
+            },
+          },
           label: "player1",
         }
       );
@@ -349,32 +354,42 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
       const player2 = Matter.Bodies.rectangle(
         player2SpawnRef.current.x,
         player2SpawnRef.current.y,
-        30,
-        40,
+        SPRITE_SIZES.PLAYER_WIDTH,
+        SPRITE_SIZES.PLAYER_HEIGHT,
         {
           friction: 1,
           frictionAir: 0.01,
           frictionStatic: 10,
           restitution: 0,
           inertia: Infinity,
-          render: { fillStyle: "#FFA500" },
+          render: {
+            sprite: {
+              texture: ASSETS.PLAYER2_IDLE,
+              xScale: 0.1,
+              yScale: 0.1,
+            },
+          },
           label: "player2",
         }
       );
       player2Ref.current = player2;
       Matter.World.add(engineRef.current.world, player2);
 
-    setAttemptStarted(true);
-    attemptStartedRef.current = true;
+      setAttemptStarted(true);
+      attemptStartedRef.current = true;
     }
   };
 
   const handleSaveLevel = () => {
-    const level = dumpAllPlaced();
+    if (!gameWon) {
+      alert("You must clear the level before saving!");
+      return;
+    }
+
+    const level = buildLevel();
     const filename = saveFilename.trim() || "custom_level";
     const jsonString = JSON.stringify(level, null, 2);
 
-    // Create a blob and download link
     const blob = new Blob([jsonString], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -385,138 +400,145 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
-    alert(`Level saved as ${filename}.json\n\nTo use in your app, move this file to public/custom_levels/`);
+    alert(
+      `Level saved as ${filename}.json\n\nTo use in your app, move this file to public/custom_levels/`
+    );
   };
 
   const handleLoadLevel = () => {
     fileInputRef.current?.click();
   };
 
-    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
     reader.onload = (event) => {
-        try {
-        const levelData = JSON.parse(event.target?.result as string) as SavedLevel;
-        
+      try {
+        const levelData = JSON.parse(
+          event.target?.result as string
+        ) as SavedLevel;
+
         // Clear existing elements
         platformsRef.current.forEach((p) => {
-            if (engineRef.current) {
+          if (engineRef.current) {
             Matter.World.remove(engineRef.current.world, p.body);
-            }
+          }
         });
         platformsRef.current = [];
-        
+
         flagsRef.current.forEach((f) => {
-            if (engineRef.current) {
-            Matter.World.remove(engineRef.current.world, [f.pole, f.flag]);
-            }
+          if (engineRef.current) {
+            Matter.World.remove(engineRef.current.world, f.flag);
+          }
         });
         flagsRef.current = [];
         setFlagStates({});
-        
+
         if (player1SpawnMarkerRef.current && engineRef.current) {
-            Matter.World.remove(engineRef.current.world, player1SpawnMarkerRef.current);
+          Matter.World.remove(
+            engineRef.current.world,
+            player1SpawnMarkerRef.current
+          );
         }
         if (player2SpawnMarkerRef.current && engineRef.current) {
-            Matter.World.remove(engineRef.current.world, player2SpawnMarkerRef.current);
+          Matter.World.remove(
+            engineRef.current.world,
+            player2SpawnMarkerRef.current
+          );
         }
         player1SpawnMarkerRef.current = null;
         player2SpawnMarkerRef.current = null;
         player1SpawnRef.current = null;
         player2SpawnRef.current = null;
-        
+
         // Load platforms
         if (engineRef.current) {
-            levelData.platforms.forEach((p) => {
-            const platform = makePlatformFromEndpoints(p.start, p.end, p.thickness, p.type);
+          levelData.platforms.forEach((p) => {
+            const platform = makePlatformFromEndpoints(
+              p.start,
+              p.end,
+              p.thickness,
+              p.type
+            );
             Matter.World.add(engineRef.current!.world, platform);
             platformsRef.current.push({
-                body: platform,
-                type: p.type,
-                meta: { start: p.start, end: p.end, thickness: p.thickness },
+              body: platform,
+              type: p.type,
+              meta: { start: p.start, end: p.end, thickness: p.thickness },
             });
-            });
-            
-            // Load flags
-            const nextFlagStates: Record<string, boolean> = {};
-            levelData.flags.forEach((f, idx) => {
-            const pole = Matter.Bodies.rectangle(f.pole.x, f.pole.y, 5, 100, {
-                isStatic: true,
-                render: { fillStyle: "#000000" },
-                label: "flagPole",
-                isSensor: true,
-            });
+          });
 
-            const flagColor = f.playerType === 1 ? "#00FF00" : "#FFA500";
+          // Load flags
+          levelData.flags.forEach((f) => {
+            const flagTexture = f.playerType === 1 
+              ? ASSETS.PLAYER1_FLAG_LOWERED 
+              : ASSETS.PLAYER2_FLAG_LOWERED;
 
-            const flagX = f.pole.x + 25;
-            const flagY = f.pole.y + 50;
-            
             const flag = Matter.Bodies.rectangle(
-                flagX,
-                flagY,
-                30,
-                20,
-                {
+              f.flag.x, 
+              f.flag.y, 
+              SPRITE_SIZES.FLAG_WIDTH, 
+              SPRITE_SIZES.FLAG_HEIGHT, 
+              {
                 isStatic: true,
-                render: { fillStyle: flagColor },
+                render: {
+                  sprite: {
+                    texture: flagTexture,
+                    xScale: 0.1,
+                    yScale: 0.1,
+                  },
+                },
                 label: "flag",
                 isSensor: true,
-                }
+              }
             );
 
-            Matter.World.add(engineRef.current!.world, [pole, flag]);
+            Matter.World.add(engineRef.current!.world, flag);
             flagsRef.current.push({
-                pole,
-                flag,
-                raised: false,
-                playerType: f.playerType,
+              flag,
+              raised: false,
+              playerType: f.playerType,
             });
+          });
 
-            nextFlagStates[`flag_${idx}`] = false;
-            });
-            setFlagStates(nextFlagStates);
-            
-            // Load spawn points
-            if (levelData.player1Spawn) {
+          // Load spawn points
+          if (levelData.player1Spawn) {
             player1SpawnRef.current = { ...levelData.player1Spawn };
             const marker = createSpawnMarker(
-                levelData.player1Spawn.x,
-                levelData.player1Spawn.y,
-                1
+              levelData.player1Spawn.x,
+              levelData.player1Spawn.y,
+              1
             );
             Matter.World.add(engineRef.current.world, marker);
             player1SpawnMarkerRef.current = marker;
-            }
-            
-            if (levelData.player2Spawn) {
+          }
+
+          if (levelData.player2Spawn) {
             player2SpawnRef.current = { ...levelData.player2Spawn };
             const marker = createSpawnMarker(
-                levelData.player2Spawn.x,
-                levelData.player2Spawn.y,
-                2
+              levelData.player2Spawn.x,
+              levelData.player2Spawn.y,
+              2
             );
             Matter.World.add(engineRef.current.world, marker);
             player2SpawnMarkerRef.current = marker;
-            }
+          }
         }
-        
+
         alert("Level loaded successfully!");
-        
-        // Reset file input
+
         if (fileInputRef.current) {
-            fileInputRef.current.value = "";
+          fileInputRef.current.value = "";
         }
-        } catch (error) {
+      } catch (error) {
         alert("Error loading level file. Please ensure it's a valid JSON file.");
         console.error(error);
-        }
+      }
     };
     reader.readAsText(file);
-    };
+  };
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -537,87 +559,6 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
       },
     });
     renderRef.current = render;
-
-    // Load initialLevel (if provided)
-    if (initialLevel) {
-      // Set spawn points
-      if (initialLevel.player1Spawn) {
-        player1SpawnRef.current = { ...initialLevel.player1Spawn };
-        const marker = createSpawnMarker(
-          initialLevel.player1Spawn.x,
-          initialLevel.player1Spawn.y,
-          1
-        );
-        Matter.World.add(world, marker);
-        player1SpawnMarkerRef.current = marker;
-      }
-
-      if (initialLevel.player2Spawn) {
-        player2SpawnRef.current = { ...initialLevel.player2Spawn };
-        const marker = createSpawnMarker(
-          initialLevel.player2Spawn.x,
-          initialLevel.player2Spawn.y,
-          2
-        );
-        Matter.World.add(world, marker);
-        player2SpawnMarkerRef.current = marker;
-      }
-
-      // Platforms
-      initialLevel.platforms.forEach((p) => {
-        const platform = makePlatformFromEndpoints(
-          p.start,
-          p.end,
-          p.thickness,
-          p.type
-        );
-        Matter.World.add(world, platform);
-        platformsRef.current.push({
-          body: platform,
-          type: p.type,
-          meta: { start: p.start, end: p.end, thickness: p.thickness },
-        });
-      });
-
-      // Flags
-      const nextFlagStates: Record<string, boolean> = {};
-
-      initialLevel.flags.forEach((f, idx) => {
-        const pole = Matter.Bodies.rectangle(f.pole.x, f.pole.y, 5, 100, {
-          isStatic: true,
-          render: { fillStyle: "#000000" },
-          label: "flagPole",
-          isSensor: true,
-        });
-
-        const flagColor = f.playerType === 1 ? "#00FF00" : "#FFA500";
-
-        const flag = Matter.Bodies.rectangle(
-          f.flag.x,
-          f.flag.y + 50 + 30,
-          30,
-          20,
-          {
-            isStatic: true,
-            render: { fillStyle: flagColor },
-            label: "flag",
-            isSensor: true,
-          }
-        );
-
-        Matter.World.add(world, [pole, flag]);
-        flagsRef.current.push({
-          pole,
-          flag,
-          raised: f.raised,
-          playerType: f.playerType,
-        });
-
-        nextFlagStates[`flag_${idx}`] = f.raised;
-      });
-
-      setFlagStates(nextFlagStates);
-    }
 
     // Collision detection
     Matter.Events.on(engine, "collisionStart", (event) => {
@@ -845,7 +786,12 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
 
     // Game loop
     const gameLoop = () => {
-      if (!attemptStartedRef.current || !player1Ref.current || !player2Ref.current) return;
+      if (
+        !attemptStartedRef.current ||
+        !player1Ref.current ||
+        !player2Ref.current
+      )
+        return;
 
       const moveSpeed = 5;
       const jumpForce = -0.04;
@@ -915,7 +861,9 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
       // Player 2 movement
       const player2Moving = keysRef.current.left || keysRef.current.right;
       const player2NoKeys =
-        !keysRef.current.left && !keysRef.current.right && !keysRef.current.up;
+        !keysRef.current.left &&
+        !keysRef.current.right &&
+        !keysRef.current.up;
 
       applySlopeStick(
         player2Ref.current,
@@ -972,6 +920,38 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
         );
         keysRef.current.up = false;
       }
+
+      // Player animation
+      animationTickRef.current++;
+      if (animationTickRef.current % 10 === 0) {
+        if (player1Ref.current) {
+          const isMoving = keysRef.current.a || keysRef.current.d;
+          if (isMoving) {
+            player1AnimFrameRef.current = 1 - player1AnimFrameRef.current;
+            const texture = player1AnimFrameRef.current === 0 
+              ? ASSETS.PLAYER1_WALK_1 
+              : ASSETS.PLAYER1_WALK_2;
+            (player1Ref.current.render as any).sprite.texture = texture;
+          } else {
+            (player1Ref.current.render as any).sprite.texture = ASSETS.PLAYER1_IDLE;
+            player1AnimFrameRef.current = 0;
+          }
+        }
+
+        if (player2Ref.current) {
+          const isMoving = keysRef.current.left || keysRef.current.right;
+          if (isMoving) {
+            player2AnimFrameRef.current = 1 - player2AnimFrameRef.current;
+            const texture = player2AnimFrameRef.current === 0 
+              ? ASSETS.PLAYER2_WALK_1 
+              : ASSETS.PLAYER2_WALK_2;
+            (player2Ref.current.render as any).sprite.texture = texture;
+          } else {
+            (player2Ref.current.render as any).sprite.texture = ASSETS.PLAYER2_IDLE;
+            player2AnimFrameRef.current = 0;
+          }
+        }
+      }
     };
 
     Matter.Events.on(engine, "beforeUpdate", gameLoop);
@@ -989,38 +969,39 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
       window.removeEventListener("keyup", handleKeyUp);
       render.canvas.remove();
     };
-  }, [lines, initialLevel]);
+  }, []);
 
-  // Update flag positions when raised
+  // Update flag sprites when raised
   useEffect(() => {
     flagsRef.current.forEach((flagData, index) => {
-      if (flagStates[`flag_${index}`] && flagData.raised) {
-        const poleX = flagData.pole.position.x;
-        const poleY = flagData.pole.position.y;
-        const poleHeight = 100;
-
-        Matter.Body.setPosition(flagData.flag, {
-          x: poleX + 25,
-          y: poleY - poleHeight / 2 + 10,
-        });
-      }
+      const isRaised = flagStates[`flag_${index}`] && flagData.raised;
+      
+      const texture = isRaised
+        ? (flagData.playerType === 1 ? ASSETS.PLAYER1_FLAG_RAISED : ASSETS.PLAYER2_FLAG_RAISED)
+        : (flagData.playerType === 1 ? ASSETS.PLAYER1_FLAG_LOWERED : ASSETS.PLAYER2_FLAG_LOWERED);
+      
+      (flagData.flag.render as any).sprite.texture = texture;
     });
   }, [flagStates]);
 
-  // Check win condition - all flags must be raised
+  // Check win condition
   useEffect(() => {
     if (attemptStarted && flagsRef.current.length > 0) {
       const allRaised = flagsRef.current.every((flag) => flag.raised);
       if (allRaised && !gameWon) {
         setGameWon(true);
-        dumpAllPlaced();
+        console.log("[LEVEL CLEARED]", buildLevel());
       }
     }
   }, [flagStates, gameWon, attemptStarted]);
 
-  // Handle canvas clicks
   const handleCanvasClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (gameWon || attemptStarted || !renderRef.current || !engineRef.current)
+    if (
+      gameWon ||
+      attemptStarted ||
+      !renderRef.current ||
+      !engineRef.current
+    )
       return;
 
     const canvas = renderRef.current.canvas;
@@ -1065,11 +1046,9 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
         setFirstClickPoint(null);
       }
     } else if (toolMode === "player1Spawn") {
-      // Set Player 1 spawn point
       player1SpawnRef.current = { x, y };
       logSpawn(1, x, y);
 
-      // Remove old marker if exists
       if (player1SpawnMarkerRef.current && engineRef.current) {
         Matter.World.remove(
           engineRef.current.world,
@@ -1077,16 +1056,13 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
         );
       }
 
-      // Create new marker
       const marker = createSpawnMarker(x, y, 1);
       Matter.World.add(engineRef.current.world, marker);
       player1SpawnMarkerRef.current = marker;
     } else if (toolMode === "player2Spawn") {
-      // Set Player 2 spawn point
       player2SpawnRef.current = { x, y };
       logSpawn(2, x, y);
 
-      // Remove old marker if exists
       if (player2SpawnMarkerRef.current && engineRef.current) {
         Matter.World.remove(
           engineRef.current.world,
@@ -1094,67 +1070,64 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
         );
       }
 
-      // Create new marker
       const marker = createSpawnMarker(x, y, 2);
       Matter.World.add(engineRef.current.world, marker);
       player2SpawnMarkerRef.current = marker;
     } else if (toolMode === "player1Flag") {
-      // Create Player 1 flag at clicked position
-      const pole = Matter.Bodies.rectangle(x, y, 5, 100, {
-        isStatic: true,
-        render: { fillStyle: "#000000" },
-        label: "flagPole",
-        isSensor: true,
-      });
+      const flag = Matter.Bodies.rectangle(
+        x, 
+        y, 
+        SPRITE_SIZES.FLAG_WIDTH, 
+        SPRITE_SIZES.FLAG_HEIGHT, 
+        {
+          isStatic: true,
+          render: {
+            sprite: {
+              texture: ASSETS.PLAYER1_FLAG_LOWERED,
+              xScale: 0.1,
+              yScale: 0.1,
+            },
+          },
+          label: "flag",
+          isSensor: true,
+        }
+      );
 
-      const flag = Matter.Bodies.rectangle(x + 25, y + 50, 30, 20, {
-        isStatic: true,
-        render: { fillStyle: "#00FF00" },
-        label: "flag",
-        isSensor: true,
-      });
+      logFlag(1, x, y);
 
-      logFlag(1, x, y, x + 25, y + 50);
-
-      Matter.World.add(engineRef.current.world, [pole, flag]);
-      flagsRef.current.push({ pole, flag, raised: false, playerType: 1 });
-      setFlagStates((prev) => ({
-        ...prev,
-        [`flag_${flagsRef.current.length - 1}`]: false,
-      }));
+      Matter.World.add(engineRef.current.world, flag);
+      flagsRef.current.push({ flag, raised: false, playerType: 1 });
     } else if (toolMode === "player2Flag") {
-      // Create Player 2 flag at clicked position
-      const pole = Matter.Bodies.rectangle(x, y, 5, 100, {
-        isStatic: true,
-        render: { fillStyle: "#000000" },
-        label: "flagPole",
-        isSensor: true,
-      });
+      const flag = Matter.Bodies.rectangle(
+        x, 
+        y, 
+        SPRITE_SIZES.FLAG_WIDTH, 
+        SPRITE_SIZES.FLAG_HEIGHT, 
+        {
+          isStatic: true,
+          render: {
+            sprite: {
+              texture: ASSETS.PLAYER2_FLAG_LOWERED,
+              xScale: 0.1,
+              yScale: 0.1,
+            },
+          },
+          label: "flag",
+          isSensor: true,
+        }
+      );
 
-      logFlag(2, x, y, x + 25, y + 50);
+      logFlag(2, x, y);
 
-      const flag = Matter.Bodies.rectangle(x + 25, y + 50, 30, 20, {
-        isStatic: true,
-        render: { fillStyle: "#FFA500" },
-        label: "flag",
-        isSensor: true,
-      });
-
-      Matter.World.add(engineRef.current.world, [pole, flag]);
-      flagsRef.current.push({ pole, flag, raised: false, playerType: 2 });
-      setFlagStates((prev) => ({
-        ...prev,
-        [`flag_${flagsRef.current.length - 1}`]: false,
-      }));
+      Matter.World.add(engineRef.current.world, flag);
+      flagsRef.current.push({ flag, raised: false, playerType: 2 });
     } else if (toolMode === "delete") {
-      // Find clicked body
       const bodies = Matter.Query.point(engineRef.current.world.bodies, {
         x,
         y,
       });
 
       for (const body of bodies) {
-        // Check if it's a platform
         const platformIndex = platformsRef.current.findIndex(
           (p) => p.body === body
         );
@@ -1170,41 +1143,25 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
           break;
         }
 
-        // Check if it's a flag or pole
         const flagIndex = flagsRef.current.findIndex(
-          (f) => f.flag === body || f.pole === body
+          (f) => f.flag === body
         );
         if (flagIndex !== -1) {
           const flagData = flagsRef.current[flagIndex];
 
           console.log("[DELETE FLAG]", {
             playerType: flagData.playerType,
-            pole: {
-              x: r2(flagData.pole.position.x),
-              y: r2(flagData.pole.position.y),
-            },
             flag: {
               x: r2(flagData.flag.position.x),
               y: r2(flagData.flag.position.y),
             },
           });
 
-          Matter.World.remove(engineRef.current.world, [
-            flagData.pole,
-            flagData.flag,
-          ]);
+          Matter.World.remove(engineRef.current.world, flagData.flag);
           flagsRef.current.splice(flagIndex, 1);
-
-          // Update flag states
-          const newFlagStates: { [key: string]: boolean } = {};
-          flagsRef.current.forEach((_, idx) => {
-            newFlagStates[`flag_${idx}`] = flagsRef.current[idx].raised;
-          });
-          setFlagStates(newFlagStates);
           break;
         }
 
-        // Check if it's a spawn marker
         if (body === player1SpawnMarkerRef.current) {
           console.log("[DELETE SPAWN P1]");
           Matter.World.remove(engineRef.current.world, body);
@@ -1221,23 +1178,6 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
           break;
         }
       }
-    }
-  };
-
-  const handleRestart = () => {
-    setGameWon(false);
-    if (onRestart) {
-      onRestart();
-    } else {
-      window.location.reload();
-    }
-  };
-
-  const handleReturnToLevelSelect = () => {
-    if (onReturnToLevelSelect) {
-      onReturnToLevelSelect();
-    } else {
-      alert("Returning to level select...");
     }
   };
 
@@ -1266,7 +1206,6 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
 
   return (
     <div style={{ position: "relative" }}>
-      {/* Hidden file input for loading levels */}
       <input
         ref={fileInputRef}
         type="file"
@@ -1275,7 +1214,7 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
         onChange={handleFileSelect}
       />
 
-      {/* Collapsible Menu */}
+      {/* Tool Menu */}
       <div
         style={{
           position: "absolute",
@@ -1459,7 +1398,6 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
               Delete
             </button>
 
-            {/* Divider */}
             <div
               style={{
                 height: "1px",
@@ -1468,7 +1406,6 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
               }}
             />
 
-            {/* Attempt Clear Button */}
             <button
               onClick={handleAttemptClear}
               disabled={attemptStarted}
@@ -1485,7 +1422,6 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
               {attemptStarted ? "Attempt Started" : "Attempt Clear"}
             </button>
 
-            {/* Load Level Button */}
             <button
               onClick={handleLoadLevel}
               disabled={attemptStarted}
@@ -1564,7 +1500,7 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
               textShadow: "3px 3px 6px rgba(0,0,0,0.8)",
             }}
           >
-            You Win!
+            Level Cleared!
           </h1>
           <div
             style={{
@@ -1576,7 +1512,7 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
             }}
           >
             <button
-              onClick={handleRestart}
+              onClick={() => window.location.reload()}
               style={{
                 padding: "15px 30px",
                 fontSize: "20px",
@@ -1644,29 +1580,6 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
                 Save Level
               </button>
             </div>
-
-            <button
-              onClick={handleReturnToLevelSelect}
-              style={{
-                padding: "15px 30px",
-                fontSize: "20px",
-                backgroundColor: "#2196F3",
-                color: "white",
-                border: "none",
-                borderRadius: "8px",
-                cursor: "pointer",
-                fontWeight: "bold",
-                boxShadow: "0 4px 6px rgba(0,0,0,0.3)",
-              }}
-              onMouseOver={(e) =>
-                (e.currentTarget.style.backgroundColor = "#0b7dda")
-              }
-              onMouseOut={(e) =>
-                (e.currentTarget.style.backgroundColor = "#2196F3")
-              }
-            >
-              Return to Level Select
-            </button>
           </div>
         </div>
       )}
@@ -1701,4 +1614,4 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
   );
 };
 
-export default PlatformerGame;
+export default LevelCreator;
