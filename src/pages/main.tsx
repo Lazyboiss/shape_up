@@ -19,7 +19,7 @@ export default function Main() {
       {level === 0 ? <Home setLevel={setLevel} /> : null}
 
       {level !== 0 && selectedLevel ? (
-        <LevelCreator showCustomTools={true} loadLevel={selectedLevel} />
+        <LevelCreator showCustomTools={false} loadLevel={selectedLevel} />
       ) : null}
     </div>
   );

@@ -135,7 +135,7 @@ const createSpawnMarker = (x: number, y: number, playerType: 1 | 2) => {
 
 export const LevelCreator: React.FC<LevelCreatorProps> = ({
   showCustomTools = true,
-  loadLevel = null,
+  loadLevel,
 }) => {
   const canvasRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<Matter.Engine | null>(null);
@@ -388,15 +388,6 @@ export const LevelCreator: React.FC<LevelCreatorProps> = ({
     }
   };
 
-  useEffect(() => {
-    if (loadLevel) {
-      loadLevelHandler(loadLevel);
-      alert("hi");
-      console.log(player1SpawnRef.current);
-      handleAttemptClear();
-    }
-  }, [loadLevel]);
-
   const handleSaveLevel = () => {
     if (!gameWon) {
       alert("You must clear the level before saving!");
@@ -427,115 +418,104 @@ export const LevelCreator: React.FC<LevelCreatorProps> = ({
   };
 
   const loadLevelHandler = (levelData: SavedLevel) => {
-    // Clear existing elements
-    platformsRef.current.forEach((p) => {
-      if (engineRef.current) {
-        Matter.World.remove(engineRef.current.world, p.body);
-      }
-    });
+    if (!engineRef.current) return false;
+
+    const world = engineRef.current.world;
+
+    // 1) Clear existing platforms
+    platformsRef.current.forEach((p) => Matter.World.remove(world, p.body));
     platformsRef.current = [];
 
-    flagsRef.current.forEach((f) => {
-      if (engineRef.current) {
-        Matter.World.remove(engineRef.current.world, f.flag);
-      }
-    });
+    // 2) Clear existing flags
+    flagsRef.current.forEach((f) => Matter.World.remove(world, f.flag));
     flagsRef.current = [];
     setFlagStates({});
 
-    if (player1SpawnMarkerRef.current && engineRef.current) {
-      Matter.World.remove(
-        engineRef.current.world,
-        player1SpawnMarkerRef.current
+    // 3) Clear spawn markers
+    if (player1SpawnMarkerRef.current) {
+      Matter.World.remove(world, player1SpawnMarkerRef.current);
+      player1SpawnMarkerRef.current = null;
+    }
+    if (player2SpawnMarkerRef.current) {
+      Matter.World.remove(world, player2SpawnMarkerRef.current);
+      player2SpawnMarkerRef.current = null;
+    }
+
+    // 4) Load platforms (IMPORTANT)
+    levelData.platforms.forEach((p) => {
+      const platform = makePlatformFromEndpoints(
+        p.start,
+        p.end,
+        p.thickness,
+        p.type
       );
-    }
-    if (player2SpawnMarkerRef.current && engineRef.current) {
-      Matter.World.remove(
-        engineRef.current.world,
-        player2SpawnMarkerRef.current
+      Matter.World.add(world, platform);
+
+      platformsRef.current.push({
+        body: platform,
+        type: p.type, // "permanent" | "ground"
+        meta: { start: p.start, end: p.end, thickness: p.thickness },
+      });
+    });
+
+    // 5) Load flags (IMPORTANT)
+    levelData.flags.forEach((f) => {
+      const flagTexture =
+        f.playerType === 1
+          ? ASSETS.PLAYER1_FLAG_LOWERED
+          : ASSETS.PLAYER2_FLAG_LOWERED;
+
+      const flag = Matter.Bodies.rectangle(
+        f.flag.x,
+        f.flag.y,
+        SPRITE_SIZES.FLAG_WIDTH,
+        SPRITE_SIZES.FLAG_HEIGHT,
+        {
+          isStatic: true,
+          isSensor: true,
+          label: "flag",
+          render: {
+            sprite: { texture: flagTexture, xScale: 0.1, yScale: 0.1 },
+          },
+        }
       );
-    }
-    player1SpawnMarkerRef.current = null;
-    player2SpawnMarkerRef.current = null;
-    player1SpawnRef.current = null;
-    player2SpawnRef.current = null;
 
-    // Load platforms
-    if (engineRef.current) {
-      levelData.platforms.forEach((p) => {
-        const platform = makePlatformFromEndpoints(
-          p.start,
-          p.end,
-          p.thickness,
-          p.type
-        );
-        Matter.World.add(engineRef.current!.world, platform);
-        platformsRef.current.push({
-          body: platform,
-          type: p.type,
-          meta: { start: p.start, end: p.end, thickness: p.thickness },
-        });
+      Matter.World.add(world, flag);
+      flagsRef.current.push({
+        flag,
+        raised: false,
+        playerType: f.playerType,
       });
+    });
 
-      // Load flags
-      levelData.flags.forEach((f) => {
-        const flagTexture =
-          f.playerType === 1
-            ? ASSETS.PLAYER1_FLAG_LOWERED
-            : ASSETS.PLAYER2_FLAG_LOWERED;
+    // 6) Load spawn refs + markers
+    player1SpawnRef.current = levelData.player1Spawn
+      ? { ...levelData.player1Spawn }
+      : null;
+    player2SpawnRef.current = levelData.player2Spawn
+      ? { ...levelData.player2Spawn }
+      : null;
 
-        const flag = Matter.Bodies.rectangle(
-          f.flag.x,
-          f.flag.y,
-          SPRITE_SIZES.FLAG_WIDTH,
-          SPRITE_SIZES.FLAG_HEIGHT,
-          {
-            isStatic: true,
-            render: {
-              sprite: {
-                texture: flagTexture,
-                xScale: 0.1,
-                yScale: 0.1,
-              },
-            },
-            label: "flag",
-            isSensor: true,
-          }
-        );
-
-        Matter.World.add(engineRef.current!.world, flag);
-        flagsRef.current.push({
-          flag,
-          raised: false,
-          playerType: f.playerType,
-        });
-      });
-
-      // Load spawn points
-      if (levelData.player1Spawn) {
-        player1SpawnRef.current = { ...levelData.player1Spawn };
-        const marker = createSpawnMarker(
-          levelData.player1Spawn.x,
-          levelData.player1Spawn.y,
-          1
-        );
-        Matter.World.add(engineRef.current.world, marker);
-        player1SpawnMarkerRef.current = marker;
-      }
-
-      if (levelData.player2Spawn) {
-        player2SpawnRef.current = { ...levelData.player2Spawn };
-        const marker = createSpawnMarker(
-          levelData.player2Spawn.x,
-          levelData.player2Spawn.y,
-          2
-        );
-        Matter.World.add(engineRef.current.world, marker);
-        player2SpawnMarkerRef.current = marker;
-      }
+    if (player1SpawnRef.current) {
+      const marker = createSpawnMarker(
+        player1SpawnRef.current.x,
+        player1SpawnRef.current.y,
+        1
+      );
+      Matter.World.add(world, marker);
+      player1SpawnMarkerRef.current = marker;
     }
 
-    // alert("Level loaded successfully!");
+    if (player2SpawnRef.current) {
+      const marker = createSpawnMarker(
+        player2SpawnRef.current.x,
+        player2SpawnRef.current.y,
+        2
+      );
+      Matter.World.add(world, marker);
+      player2SpawnMarkerRef.current = marker;
+    }
+
     return true;
   };
 
@@ -1025,6 +1005,13 @@ export const LevelCreator: React.FC<LevelCreatorProps> = ({
       }
     }
   }, [flagStates, gameWon, attemptStarted]);
+
+  useEffect(() => {
+    if (!loadLevel) return;
+    if (!engineRef.current) return; // engine not ready yet
+    loadLevelHandler(loadLevel);
+    handleAttemptClear();
+  }, [loadLevel]);
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (gameWon || attemptStarted || !renderRef.current || !engineRef.current)
@@ -1562,12 +1549,13 @@ export const LevelCreator: React.FC<LevelCreatorProps> = ({
             {/* Save Level Section */}
             <div
               style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "10px",
                 alignItems: "center",
               }}
-              className={showCustomTools ? "" : "hidden"}
+              className={
+                showCustomTools
+                  ? "flex flex-col gap-2.5 items-center"
+                  : "hidden"
+              }
             >
               <input
                 type="text"
