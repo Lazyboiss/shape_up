@@ -1,5 +1,7 @@
 export const ASSETS = {
   GROUND: "../../public/ground.png",
+  POSE_PLATFORM: "../../public/platform.png",
+  FIXED_PLATFORM: "../../public/platform2.png",
   PLAYER1_IDLE: "../../public/player1_01.png",
   PLAYER1_WALK_1: "../../public/player1_01.png",
   PLAYER1_WALK_2: "../../public/player1_02.png",
