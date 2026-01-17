@@ -172,7 +172,7 @@ function LevelSelectPage({ onLevelSelect, showInstructions, setShowInstructions 
                   <p><strong className="text-pink-400">Player 1 (Cyan):</strong></p>
                   <p className="ml-4">• A / D - Move Left/Right</p>
                   <p className="ml-4">• W - Jump</p>
-                  
+
                   <p className="mt-3"><strong className="text-pink-400">Player 2 (Pink):</strong></p>
                   <p className="ml-4">• Arrow Left / Right - Move Left/Right</p>
                   <p className="ml-4">• Arrow Up - Jump</p>
@@ -444,7 +444,7 @@ useEffect( () => {}, [timeLeft])
         k.pos(600, 30),
         k.anchor('center'),
         k.color(255, 255, 255),
-        k.layer('ui'),
+        // k.layer('ui'),
       ]);
 
       // Timer logic
