@@ -1,5 +1,5 @@
 import { Route, Routes } from "react-router-dom";
-import Main from "./pages/main.tsx";
+import { App as Main } from "./pages/main.tsx";
 import Game from "./pages/game.tsx";
 import PlatformerGame from "./pages/rezky.tsx";
 import { ThemeProvider } from "@/components/theme-provider";
