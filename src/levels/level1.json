@@ -2,49 +2,41 @@
   "platforms": [
     {
       "start": {
-        "x": -12,
-        "y": 467
+        "x": -18,
+        "y": 700
       },
       "end": {
-        "x": 842,
-        "y": 488
+        "x": 1263,
+        "y": 732
       },
-      "thickness": 10,
+      "thickness": 15,
       "type": "ground"
     }
   ],
   "flags": [
     {
       "playerType": 1,
-      "pole": {
-        "x": 281,
-        "y": 375
-      },
       "flag": {
-        "x": 306,
-        "y": 335
+        "x": 459,
+        "y": 503
       },
-      "raised": true
+      "raised": false
     },
     {
       "playerType": 2,
-      "pole": {
-        "x": 452,
-        "y": 350
-      },
       "flag": {
-        "x": 477,
-        "y": 310
+        "x": 716,
+        "y": 465
       },
-      "raised": true
+      "raised": false
     }
   ],
   "player1Spawn": {
-    "x": 164,
-    "y": 394
+    "x": 246,
+    "y": 591
   },
   "player2Spawn": {
-    "x": 604,
-    "y": 380
+    "x": 906,
+    "y": 570
   }
 }
