@@ -1,4 +1,4 @@
-import "./App.css";
+import "@/App.css";
 import "@tensorflow/tfjs";
 import { drawKeypoints, drawSkeleton } from "@/lib/pose_utils";
 import * as poseDetection from "@tensorflow-models/pose-detection";
