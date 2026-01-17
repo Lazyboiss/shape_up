@@ -550,7 +550,6 @@ export const LevelCreator: React.FC<LevelCreatorProps> = ({
 
     const engine = Matter.Engine.create();
     engineRef.current = engine;
-    const world = engine.world;
     engine.gravity.y = 1;
 
     const render = Matter.Render.create({
