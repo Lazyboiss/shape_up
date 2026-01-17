@@ -1,11 +1,12 @@
 import "./App.css";
-import "@tensorflow/tfjs";
+import * as tf from "@tensorflow/tfjs-core";
+import "@tensorflow/tfjs-backend-webgl";
 import { drawKeypoints, drawSkeleton } from "@/lib/pose_utils";
 import * as poseDetection from "@tensorflow-models/pose-detection";
-import * as tf from "@tensorflow/tfjs-core";
 import { Button } from "@/components/ui/button";
 import { useRef, useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { getMoveNetDetector } from "@/lib/detector";
 
 export default function App() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -13,173 +14,179 @@ export default function App() {
   const [allPoses, setAllPoses] = useState<poseDetection.Pose[]>([]);
   const poseColor = "pink";
 
+  const [isLoading, setIsLoading] = useState(true);
+  const loadingClearedOnceRef = useRef(false);
+
   useEffect(() => {
     // console.log(allPoses);
   }, [allPoses]);
 
   useEffect(() => {
-    const loadModelAndStart = async () => {
-      const detectorConfig = {
-        modelType: poseDetection.movenet.modelType.MULTIPOSE_LIGHTNING,
-      };
-      // const detectorConfig = {
-      //   modelType: poseDetection.movenet.modelType.SINGLEPOSE_THUNDER,
-      // };
+    let stream: MediaStream | null = null;
+    let rafId: number | null = null;
+    let cancelled = false;
 
-      const detector = await poseDetection.createDetector(
-        poseDetection.SupportedModels.MoveNet,
-        detectorConfig
-      );
+    const stopEverything = () => {
+      if (rafId != null) cancelAnimationFrame(rafId);
+      rafId = null;
+
+      if (stream) {
+        stream.getTracks().forEach((t) => t.stop());
+        stream = null;
+      }
+
+      const video = videoRef.current;
+      if (video) {
+        video.pause();
+        video.srcObject = null;
+      }
+    };
+
+    const loadModelAndStart = async () => {
+      const detector = await getMoveNetDetector();
 
       const video = videoRef.current;
       if (!video) return;
 
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      if (cancelled) return;
+
       video.srcObject = stream;
 
-      video.onloadedmetadata = () => {
-        video.play();
-        runPoseEstimation();
-      };
+      video.onloadedmetadata = async () => {
+        if (cancelled) return;
 
-      const runPoseEstimation = async () => {
-        const canvas = canvasRef.current;
-        const video = videoRef.current;
-        if (!canvas || !video) return;
+        try {
+          await video.play();
+        } catch {
+          // autoplay can fail in some browsers; loader will remain
+          return;
+        }
 
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return;
+        const runPoseEstimation = async () => {
+          const canvas = canvasRef.current;
+          const video = videoRef.current;
+          if (!canvas || !video) return;
 
-        // const backgroundImage = new Image();
-        // backgroundImage.src = "./GameBG.gif";
-        // await new Promise((res) => (backgroundImage.onload = res));
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return;
 
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+          // Ensure we have real dimensions
+          canvas.width = video.videoWidth || 1280;
+          canvas.height = video.videoHeight || 720;
 
-        // Offscreen canvas for flipping video input
-        const offscreenCanvas = document.createElement("canvas");
-        offscreenCanvas.width = canvas.width;
-        offscreenCanvas.height = canvas.height;
-        const offscreenCtx = offscreenCanvas.getContext("2d");
+          const offscreenCanvas = document.createElement("canvas");
+          offscreenCanvas.width = canvas.width;
+          offscreenCanvas.height = canvas.height;
+          const offscreenCtx = offscreenCanvas.getContext("2d");
 
-        const loop = async () => {
-          if (!offscreenCtx) return;
+          const loop = async () => {
+            if (cancelled) return;
+            if (!offscreenCtx) return;
 
-          // 1. Draw flipped video onto offscreen canvas
-          offscreenCtx.save();
-          offscreenCtx.scale(-1, 1);
-          offscreenCtx.translate(-offscreenCanvas.width, 0);
+            // 1) Draw flipped video onto offscreen canvas
+            offscreenCtx.save();
+            offscreenCtx.scale(-1, 1);
+            offscreenCtx.translate(-offscreenCanvas.width, 0);
+            offscreenCtx.drawImage(
+              video,
+              0,
+              0,
+              offscreenCanvas.width,
+              offscreenCanvas.height
+            );
+            offscreenCtx.restore();
 
-          offscreenCtx.drawImage(
-            video,
-            0,
-            0,
-            offscreenCanvas.width,
-            offscreenCanvas.height
-          );
-          offscreenCtx.restore();
+            // 2) Estimate poses on flipped frame
+            const poses = await detector.estimatePoses(offscreenCanvas, {
+              scoreThreshold: 0.01,
+              maxPoses: 10,
+            });
 
-          // 2. Run segmentation on flipped frame
-          const poses = await detector.estimatePoses(offscreenCanvas, {
-            scoreThreshold: 0.01,
-            maxPoses: 10,
-          });
+            setAllPoses(poses);
 
-          setAllPoses(poses);
+            // 3) Draw mirrored video + keypoints onto main canvas
+            ctx.save();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-          // 3. Flip main canvas context
-          ctx.save(); // ⬅️ Save original state
-          ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear before drawing
+            ctx.scale(-1, 1);
+            ctx.translate(-canvas.width, 0);
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-          ctx.scale(-1, 1);
-          ctx.translate(-canvas.width, 0);
-
-          // 4. Draw flipped background
-          // if (!backgroundImageRef.current) return;
-          // ctx.drawImage(
-          //   backgroundImageRef.current,
-          //   0,
-          //   0,
-          //   canvas.width,
-          //   canvas.height
-          // );
-          // ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
-
-          // 5. Get flipped video frame
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-          const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          // const { data } = frame;
-
-          // 6. Mask background using segmentation
-          // segmentation.data.forEach((val, i) => {
-          //   if (val === 0) {
-          //     data[i * 4 + 3] = 0; // make transparent
-          //   }
-          // });
-
-          // 7. Put back onto canvas
-          ctx.putImageData(frame, 0, 0);
-
-          // 8. Draw pose keypoints and skeleton (optional)
-          if (poses.length > 0) {
-            for (const pose of poses) {
-              const mirroredKeypoints = pose.keypoints.map((kp) => ({
-                ...kp,
-                x: canvas.width - kp.x,
-              }));
-              drawKeypoints(mirroredKeypoints, 0.5, ctx, 1, poseColor);
-              drawSkeleton(mirroredKeypoints, 0.5, ctx, 1, poseColor);
+            if (poses.length > 0) {
+              for (const pose of poses) {
+                const mirroredKeypoints = pose.keypoints.map((kp) => ({
+                  ...kp,
+                  x: canvas.width - kp.x,
+                }));
+                drawKeypoints(mirroredKeypoints, 0.5, ctx, 1, poseColor);
+                drawSkeleton(mirroredKeypoints, 0.5, ctx, 1, poseColor);
+              }
             }
 
-            // const keypoints = poses[0].keypoints;
-            // const mirroredKeypoints = keypoints.map((kp) => ({
-            //   ...kp,
-            //   x: canvas.width - kp.x,
-            // }));
-            // drawKeypoints(mirroredKeypoints, 0.5, ctx, 1, poseColor);
-            // drawSkeleton(mirroredKeypoints, 0.5, ctx, 1, poseColor);
-          }
-          // const { isPraying, wrists } = detectPraying(poses[0]);
+            ctx.restore();
 
-          if (true) {
-            const canvas = canvasRef.current;
-            if (canvas) {
+            // Clear loader once we have a successful first frame
+            if (!loadingClearedOnceRef.current) {
+              loadingClearedOnceRef.current = true;
+              setIsLoading(false);
             }
-          }
 
-          ctx.restore(); // Done with flipped drawing
+            rafId = requestAnimationFrame(loop);
+          };
 
-          requestAnimationFrame(loop);
+          loop();
         };
 
-        loop();
+        runPoseEstimation();
       };
     };
 
     const loadTF = async () => {
-      await tf.ready();
-      await tf.setBackend("webgl");
-      await loadModelAndStart();
+      try {
+        setIsLoading(true);
+        await tf.ready();
+        await tf.setBackend("webgl");
+        await loadModelAndStart();
+      } catch {
+        // If anything fails, keep loader (or you can add an error state)
+      }
     };
 
     loadTF();
+
+    return () => {
+      cancelled = true;
+      stopEverything();
+    };
   }, []);
 
   return (
     <div className="relative w-full fullHeight overflow-hidden flex items-center justify-center mainBG">
-      <video ref={videoRef} className="hidden" />
+      <video ref={videoRef} className="hidden" playsInline />
+
       <div className="absolute w-full h-full top-0 left-1/2 -translate-x-1/2">
         <canvas
           ref={canvasRef}
           className={cn(
             "h-full transition-opacity duration-500 mx-auto",
             true ? "border-2 border-black" : ""
-            // gameStart ? "opacity-[0.85]" : "opacity-100"
           )}
         />
       </div>
+
+      {/* Loader Overlay */}
+      {isLoading && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="flex flex-col items-center gap-3 rounded-xl bg-white/90 px-5 py-4 shadow">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-black border-t-transparent" />
+            <div className="text-sm font-medium text-black">
+              Loading camera and model…
+            </div>
+          </div>
+        </div>
+      )}
+
       <Button>Hello</Button>
     </div>
   );
