@@ -25,7 +25,7 @@ export function App() {
       <img
         src="/SHAPEUP.png"
         alt="asd"
-        className="w-100 aspect-[4/3] object-cover"
+        className="w-100 aspect-4/3 object-cover"
       />
       <Dialog>
         <DialogTrigger asChild>
