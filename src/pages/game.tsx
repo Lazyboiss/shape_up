@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 
@@ -251,6 +251,8 @@ function GamePage({ level, onReturnToLevelSelect }: GamePageProps) {
   const [gameState, setGameState] = useState<GameStateType>('playing');
   const [timeLeft, setTimeLeft] = useState<number>(60);
 
+useEffect( () => {}, [timeLeft])
+
   useEffect(() => {
     // Load Kaboom.js from CDN
     const script = document.createElement('script');
@@ -284,7 +286,7 @@ function GamePage({ level, onReturnToLevelSelect }: GamePageProps) {
     // Game constants
     const MOVE_SPEED: number = 200;
     const JUMP_FORCE: number = 500;
-    const PLAYER_SIZE: number = 32;
+    // const PLAYER_SIZE: number = 32;
     const FLAG_SIZE: number = 40;
 
     // Define level layouts
@@ -382,7 +384,7 @@ function GamePage({ level, onReturnToLevelSelect }: GamePageProps) {
             ]);
           } else if (char === '1') {
             // Player 1 (Cyan)
-            const player = k.add([
+            k.add([
               k.sprite('player1'),
               k.pos(x, y),
               k.area(),
@@ -392,7 +394,7 @@ function GamePage({ level, onReturnToLevelSelect }: GamePageProps) {
             ]);
           } else if (char === '2') {
             // Player 2 (Pink)
-            const player = k.add([
+            k.add([
               k.sprite('player2'),
               k.pos(x, y),
               k.area(),
