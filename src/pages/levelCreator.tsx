@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import Matter from "matter-js";
 import { ASSETS, SPRITE_SIZES } from "../gameAssets";
+import { cn } from "@/lib/utils";
 
 const PLATFORM_THICKNESS = 10;
 
@@ -62,6 +63,8 @@ interface FlagData {
 
 interface LevelCreatorProps {
   onTestLevel?: (level: SavedLevel) => void;
+  showCustomTools?: boolean;
+  loadLevel?: SavedLevel;
 }
 
 const makePlatformFromEndpoints = (
@@ -81,7 +84,7 @@ const makePlatformFromEndpoints = (
     renderOptions = {
       sprite: {
         texture: ASSETS.GROUND,
-        xScale: length/500,
+        xScale: length / 500,
         yScale: thickness / 64,
       },
     };
@@ -130,7 +133,10 @@ const createSpawnMarker = (x: number, y: number, playerType: 1 | 2) => {
   return marker;
 };
 
-export const LevelCreator: React.FC<LevelCreatorProps> = ({ onTestLevel }) => {
+export const LevelCreator: React.FC<LevelCreatorProps> = ({
+  showCustomTools = true,
+  loadLevel = null,
+}) => {
   const canvasRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<Matter.Engine | null>(null);
   const renderRef = useRef<Matter.Render | null>(null);
@@ -206,11 +212,7 @@ export const LevelCreator: React.FC<LevelCreatorProps> = ({ onTestLevel }) => {
     });
   };
 
-  const logFlag = (
-    playerType: 1 | 2,
-    flagX: number,
-    flagY: number
-  ) => {
+  const logFlag = (playerType: 1 | 2, flagX: number, flagY: number) => {
     console.log(`[PLACE FLAG P${playerType}]`, {
       flag: { x: r2(flagX), y: r2(flagY) },
     });
@@ -289,7 +291,9 @@ export const LevelCreator: React.FC<LevelCreatorProps> = ({ onTestLevel }) => {
 
         if (point.x >= body.bounds.min.x && point.x <= body.bounds.max.x) {
           if (point.y > body.bounds.max.y) {
-            alert(`Error: ${point.name} is below ground! Please reposition it.`);
+            alert(
+              `Error: ${point.name} is below ground! Please reposition it.`
+            );
             return false;
           }
         }
@@ -326,7 +330,11 @@ export const LevelCreator: React.FC<LevelCreatorProps> = ({ onTestLevel }) => {
     }
 
     // Spawn players
-    if (engineRef.current && player1SpawnRef.current && player2SpawnRef.current) {
+    if (
+      engineRef.current &&
+      player1SpawnRef.current &&
+      player2SpawnRef.current
+    ) {
       const player1 = Matter.Bodies.rectangle(
         player1SpawnRef.current.x,
         player1SpawnRef.current.y,
@@ -380,6 +388,15 @@ export const LevelCreator: React.FC<LevelCreatorProps> = ({ onTestLevel }) => {
     }
   };
 
+  useEffect(() => {
+    if (loadLevel) {
+      loadLevelHandler(loadLevel);
+      alert("hi");
+      console.log(player1SpawnRef.current);
+      handleAttemptClear();
+    }
+  }, [loadLevel]);
+
   const handleSaveLevel = () => {
     if (!gameWon) {
       alert("You must clear the level before saving!");
@@ -409,6 +426,119 @@ export const LevelCreator: React.FC<LevelCreatorProps> = ({ onTestLevel }) => {
     fileInputRef.current?.click();
   };
 
+  const loadLevelHandler = (levelData: SavedLevel) => {
+    // Clear existing elements
+    platformsRef.current.forEach((p) => {
+      if (engineRef.current) {
+        Matter.World.remove(engineRef.current.world, p.body);
+      }
+    });
+    platformsRef.current = [];
+
+    flagsRef.current.forEach((f) => {
+      if (engineRef.current) {
+        Matter.World.remove(engineRef.current.world, f.flag);
+      }
+    });
+    flagsRef.current = [];
+    setFlagStates({});
+
+    if (player1SpawnMarkerRef.current && engineRef.current) {
+      Matter.World.remove(
+        engineRef.current.world,
+        player1SpawnMarkerRef.current
+      );
+    }
+    if (player2SpawnMarkerRef.current && engineRef.current) {
+      Matter.World.remove(
+        engineRef.current.world,
+        player2SpawnMarkerRef.current
+      );
+    }
+    player1SpawnMarkerRef.current = null;
+    player2SpawnMarkerRef.current = null;
+    player1SpawnRef.current = null;
+    player2SpawnRef.current = null;
+
+    // Load platforms
+    if (engineRef.current) {
+      levelData.platforms.forEach((p) => {
+        const platform = makePlatformFromEndpoints(
+          p.start,
+          p.end,
+          p.thickness,
+          p.type
+        );
+        Matter.World.add(engineRef.current!.world, platform);
+        platformsRef.current.push({
+          body: platform,
+          type: p.type,
+          meta: { start: p.start, end: p.end, thickness: p.thickness },
+        });
+      });
+
+      // Load flags
+      levelData.flags.forEach((f) => {
+        const flagTexture =
+          f.playerType === 1
+            ? ASSETS.PLAYER1_FLAG_LOWERED
+            : ASSETS.PLAYER2_FLAG_LOWERED;
+
+        const flag = Matter.Bodies.rectangle(
+          f.flag.x,
+          f.flag.y,
+          SPRITE_SIZES.FLAG_WIDTH,
+          SPRITE_SIZES.FLAG_HEIGHT,
+          {
+            isStatic: true,
+            render: {
+              sprite: {
+                texture: flagTexture,
+                xScale: 0.1,
+                yScale: 0.1,
+              },
+            },
+            label: "flag",
+            isSensor: true,
+          }
+        );
+
+        Matter.World.add(engineRef.current!.world, flag);
+        flagsRef.current.push({
+          flag,
+          raised: false,
+          playerType: f.playerType,
+        });
+      });
+
+      // Load spawn points
+      if (levelData.player1Spawn) {
+        player1SpawnRef.current = { ...levelData.player1Spawn };
+        const marker = createSpawnMarker(
+          levelData.player1Spawn.x,
+          levelData.player1Spawn.y,
+          1
+        );
+        Matter.World.add(engineRef.current.world, marker);
+        player1SpawnMarkerRef.current = marker;
+      }
+
+      if (levelData.player2Spawn) {
+        player2SpawnRef.current = { ...levelData.player2Spawn };
+        const marker = createSpawnMarker(
+          levelData.player2Spawn.x,
+          levelData.player2Spawn.y,
+          2
+        );
+        Matter.World.add(engineRef.current.world, marker);
+        player2SpawnMarkerRef.current = marker;
+      }
+    }
+
+    // alert("Level loaded successfully!");
+    return true;
+  };
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -420,120 +550,15 @@ export const LevelCreator: React.FC<LevelCreatorProps> = ({ onTestLevel }) => {
           event.target?.result as string
         ) as SavedLevel;
 
-        // Clear existing elements
-        platformsRef.current.forEach((p) => {
-          if (engineRef.current) {
-            Matter.World.remove(engineRef.current.world, p.body);
-          }
-        });
-        platformsRef.current = [];
-
-        flagsRef.current.forEach((f) => {
-          if (engineRef.current) {
-            Matter.World.remove(engineRef.current.world, f.flag);
-          }
-        });
-        flagsRef.current = [];
-        setFlagStates({});
-
-        if (player1SpawnMarkerRef.current && engineRef.current) {
-          Matter.World.remove(
-            engineRef.current.world,
-            player1SpawnMarkerRef.current
-          );
-        }
-        if (player2SpawnMarkerRef.current && engineRef.current) {
-          Matter.World.remove(
-            engineRef.current.world,
-            player2SpawnMarkerRef.current
-          );
-        }
-        player1SpawnMarkerRef.current = null;
-        player2SpawnMarkerRef.current = null;
-        player1SpawnRef.current = null;
-        player2SpawnRef.current = null;
-
-        // Load platforms
-        if (engineRef.current) {
-          levelData.platforms.forEach((p) => {
-            const platform = makePlatformFromEndpoints(
-              p.start,
-              p.end,
-              p.thickness,
-              p.type
-            );
-            Matter.World.add(engineRef.current!.world, platform);
-            platformsRef.current.push({
-              body: platform,
-              type: p.type,
-              meta: { start: p.start, end: p.end, thickness: p.thickness },
-            });
-          });
-
-          // Load flags
-          levelData.flags.forEach((f) => {
-            const flagTexture = f.playerType === 1 
-              ? ASSETS.PLAYER1_FLAG_LOWERED 
-              : ASSETS.PLAYER2_FLAG_LOWERED;
-
-            const flag = Matter.Bodies.rectangle(
-              f.flag.x, 
-              f.flag.y, 
-              SPRITE_SIZES.FLAG_WIDTH, 
-              SPRITE_SIZES.FLAG_HEIGHT, 
-              {
-                isStatic: true,
-                render: {
-                  sprite: {
-                    texture: flagTexture,
-                    xScale: 0.1,
-                    yScale: 0.1,
-                  },
-                },
-                label: "flag",
-                isSensor: true,
-              }
-            );
-
-            Matter.World.add(engineRef.current!.world, flag);
-            flagsRef.current.push({
-              flag,
-              raised: false,
-              playerType: f.playerType,
-            });
-          });
-
-          // Load spawn points
-          if (levelData.player1Spawn) {
-            player1SpawnRef.current = { ...levelData.player1Spawn };
-            const marker = createSpawnMarker(
-              levelData.player1Spawn.x,
-              levelData.player1Spawn.y,
-              1
-            );
-            Matter.World.add(engineRef.current.world, marker);
-            player1SpawnMarkerRef.current = marker;
-          }
-
-          if (levelData.player2Spawn) {
-            player2SpawnRef.current = { ...levelData.player2Spawn };
-            const marker = createSpawnMarker(
-              levelData.player2Spawn.x,
-              levelData.player2Spawn.y,
-              2
-            );
-            Matter.World.add(engineRef.current.world, marker);
-            player2SpawnMarkerRef.current = marker;
-          }
-        }
-
-        alert("Level loaded successfully!");
+        loadLevelHandler(levelData);
 
         if (fileInputRef.current) {
           fileInputRef.current.value = "";
         }
       } catch (error) {
-        alert("Error loading level file. Please ensure it's a valid JSON file.");
+        alert(
+          "Error loading level file. Please ensure it's a valid JSON file."
+        );
         console.error(error);
       }
     };
@@ -861,9 +886,7 @@ export const LevelCreator: React.FC<LevelCreatorProps> = ({ onTestLevel }) => {
       // Player 2 movement
       const player2Moving = keysRef.current.left || keysRef.current.right;
       const player2NoKeys =
-        !keysRef.current.left &&
-        !keysRef.current.right &&
-        !keysRef.current.up;
+        !keysRef.current.left && !keysRef.current.right && !keysRef.current.up;
 
       applySlopeStick(
         player2Ref.current,
@@ -928,12 +951,14 @@ export const LevelCreator: React.FC<LevelCreatorProps> = ({ onTestLevel }) => {
           const isMoving = keysRef.current.a || keysRef.current.d;
           if (isMoving) {
             player1AnimFrameRef.current = 1 - player1AnimFrameRef.current;
-            const texture = player1AnimFrameRef.current === 0 
-              ? ASSETS.PLAYER1_WALK_1 
-              : ASSETS.PLAYER1_WALK_2;
+            const texture =
+              player1AnimFrameRef.current === 0
+                ? ASSETS.PLAYER1_WALK_1
+                : ASSETS.PLAYER1_WALK_2;
             (player1Ref.current.render as any).sprite.texture = texture;
           } else {
-            (player1Ref.current.render as any).sprite.texture = ASSETS.PLAYER1_IDLE;
+            (player1Ref.current.render as any).sprite.texture =
+              ASSETS.PLAYER1_IDLE;
             player1AnimFrameRef.current = 0;
           }
         }
@@ -942,12 +967,14 @@ export const LevelCreator: React.FC<LevelCreatorProps> = ({ onTestLevel }) => {
           const isMoving = keysRef.current.left || keysRef.current.right;
           if (isMoving) {
             player2AnimFrameRef.current = 1 - player2AnimFrameRef.current;
-            const texture = player2AnimFrameRef.current === 0 
-              ? ASSETS.PLAYER2_WALK_1 
-              : ASSETS.PLAYER2_WALK_2;
+            const texture =
+              player2AnimFrameRef.current === 0
+                ? ASSETS.PLAYER2_WALK_1
+                : ASSETS.PLAYER2_WALK_2;
             (player2Ref.current.render as any).sprite.texture = texture;
           } else {
-            (player2Ref.current.render as any).sprite.texture = ASSETS.PLAYER2_IDLE;
+            (player2Ref.current.render as any).sprite.texture =
+              ASSETS.PLAYER2_IDLE;
             player2AnimFrameRef.current = 0;
           }
         }
@@ -975,11 +1002,15 @@ export const LevelCreator: React.FC<LevelCreatorProps> = ({ onTestLevel }) => {
   useEffect(() => {
     flagsRef.current.forEach((flagData, index) => {
       const isRaised = flagStates[`flag_${index}`] && flagData.raised;
-      
+
       const texture = isRaised
-        ? (flagData.playerType === 1 ? ASSETS.PLAYER1_FLAG_RAISED : ASSETS.PLAYER2_FLAG_RAISED)
-        : (flagData.playerType === 1 ? ASSETS.PLAYER1_FLAG_LOWERED : ASSETS.PLAYER2_FLAG_LOWERED);
-      
+        ? flagData.playerType === 1
+          ? ASSETS.PLAYER1_FLAG_RAISED
+          : ASSETS.PLAYER2_FLAG_RAISED
+        : flagData.playerType === 1
+        ? ASSETS.PLAYER1_FLAG_LOWERED
+        : ASSETS.PLAYER2_FLAG_LOWERED;
+
       (flagData.flag.render as any).sprite.texture = texture;
     });
   }, [flagStates]);
@@ -996,12 +1027,7 @@ export const LevelCreator: React.FC<LevelCreatorProps> = ({ onTestLevel }) => {
   }, [flagStates, gameWon, attemptStarted]);
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (
-      gameWon ||
-      attemptStarted ||
-      !renderRef.current ||
-      !engineRef.current
-    )
+    if (gameWon || attemptStarted || !renderRef.current || !engineRef.current)
       return;
 
     const canvas = renderRef.current.canvas;
@@ -1075,10 +1101,10 @@ export const LevelCreator: React.FC<LevelCreatorProps> = ({ onTestLevel }) => {
       player2SpawnMarkerRef.current = marker;
     } else if (toolMode === "player1Flag") {
       const flag = Matter.Bodies.rectangle(
-        x, 
-        y, 
-        SPRITE_SIZES.FLAG_WIDTH, 
-        SPRITE_SIZES.FLAG_HEIGHT, 
+        x,
+        y,
+        SPRITE_SIZES.FLAG_WIDTH,
+        SPRITE_SIZES.FLAG_HEIGHT,
         {
           isStatic: true,
           render: {
@@ -1099,10 +1125,10 @@ export const LevelCreator: React.FC<LevelCreatorProps> = ({ onTestLevel }) => {
       flagsRef.current.push({ flag, raised: false, playerType: 1 });
     } else if (toolMode === "player2Flag") {
       const flag = Matter.Bodies.rectangle(
-        x, 
-        y, 
-        SPRITE_SIZES.FLAG_WIDTH, 
-        SPRITE_SIZES.FLAG_HEIGHT, 
+        x,
+        y,
+        SPRITE_SIZES.FLAG_WIDTH,
+        SPRITE_SIZES.FLAG_HEIGHT,
         {
           isStatic: true,
           render: {
@@ -1143,9 +1169,7 @@ export const LevelCreator: React.FC<LevelCreatorProps> = ({ onTestLevel }) => {
           break;
         }
 
-        const flagIndex = flagsRef.current.findIndex(
-          (f) => f.flag === body
-        );
+        const flagIndex = flagsRef.current.findIndex((f) => f.flag === body);
         if (flagIndex !== -1) {
           const flagData = flagsRef.current[flagIndex];
 
@@ -1227,6 +1251,7 @@ export const LevelCreator: React.FC<LevelCreatorProps> = ({ onTestLevel }) => {
           padding: "10px",
           minWidth: "150px",
         }}
+        className={cn(showCustomTools ? "" : "hidden")}
       >
         <button
           onClick={() => setMenuOpen(!menuOpen)}
@@ -1542,6 +1567,7 @@ export const LevelCreator: React.FC<LevelCreatorProps> = ({ onTestLevel }) => {
                 gap: "10px",
                 alignItems: "center",
               }}
+              className={showCustomTools ? "" : "hidden"}
             >
               <input
                 type="text"
@@ -1587,7 +1613,10 @@ export const LevelCreator: React.FC<LevelCreatorProps> = ({ onTestLevel }) => {
       {/* Instructions */}
       <div style={{ textAlign: "center", marginTop: "10px", fontSize: "14px" }}>
         {!attemptStarted ? (
-          <div style={{ color: "#FF5722", fontWeight: "bold" }}>
+          <div
+            style={{ color: "#FF5722", fontWeight: "bold" }}
+            className={showCustomTools ? "" : "hidden"}
+          >
             Design your level, then press "Attempt Clear" to start!
           </div>
         ) : (
@@ -1606,7 +1635,10 @@ export const LevelCreator: React.FC<LevelCreatorProps> = ({ onTestLevel }) => {
             </div>
           </>
         )}
-        <div style={{ marginTop: "10px", fontSize: "12px", color: "#666" }}>
+        <div
+          style={{ marginTop: "10px", fontSize: "12px", color: "#666" }}
+          className={showCustomTools ? "" : "hidden"}
+        >
           Purple = Temporary (not saved) | Blue = Permanent | Brown = Ground
         </div>
       </div>

@@ -1,5 +1,5 @@
 import { Route, Routes } from "react-router-dom";
-import { App as Main } from "./pages/main.tsx";
+import Main from "./pages/main.tsx";
 import Game from "./pages/game.tsx";
 import PlatformerGame from "@/pages/rezky.tsx";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -20,11 +20,7 @@ export default function App() {
         <Route path="/createLevel" element={<LevelCreator />}></Route>
         <Route
           path="/rezky"
-          element={
-            <PlatformerGame
-              initialLevel={level}
-            />
-          }
+          element={<PlatformerGame initialLevel={level} />}
         ></Route>
       </Routes>
     </ThemeProvider>

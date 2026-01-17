@@ -35,8 +35,8 @@ export type SavedLevel = {
 interface PlatformerGameProps {
   lines?: LineSegment[];
   initialLevel?: SavedLevel;
-  width?: number; // ✅ full page width
-  height?: number; // ✅ full page height
+  width?: number;
+  height?: number;
   onRestart?: () => void;
   onReturnToLevelSelect?: () => void;
 }
@@ -89,6 +89,29 @@ interface FlagData {
   playerType: 1 | 2;
 }
 
+// ---------- Gamepad helpers ----------
+type PadSnapshot = {
+  connected: boolean;
+  axes: number[];
+  buttons: boolean[];
+};
+
+function getPadSnapshot(index: number): PadSnapshot {
+  const pads = navigator.getGamepads?.() ?? [];
+  const p = pads[index];
+  if (!p) return { connected: false, axes: [], buttons: [] };
+  return {
+    connected: true,
+    axes: Array.from(p.axes ?? []),
+    buttons: Array.from(p.buttons ?? []).map((b) => !!b.pressed),
+  };
+}
+
+function axisValue(v: number | undefined, deadzone = 0.18) {
+  const x = v ?? 0;
+  return Math.abs(x) < deadzone ? 0 : x;
+}
+
 export const PlatformerGame: React.FC<PlatformerGameProps> = ({
   lines = [],
   initialLevel,
@@ -103,6 +126,7 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
   const player2Ref = useRef<Matter.Body | null>(null);
   const renderRef = useRef<Matter.Render | null>(null);
 
+  // Keyboard intents (still supported)
   const keysRef = useRef({
     a: false,
     d: false,
@@ -111,6 +135,23 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
     right: false,
     up: false,
   });
+
+  // Gamepad intents (merged with keyboard each tick)
+  const padsIntentRef = useRef({
+    // movement: -1..1
+    p1Move: 0,
+    p2Move: 0,
+    // jump edge
+    p1JumpPressed: false,
+    p2JumpPressed: false,
+    // previous jump state for edge detection
+    p1JumpPrev: false,
+    p2JumpPrev: false,
+  });
+
+  // Which pad controls which player
+  // Default: pad0 -> P1, pad1 -> P2
+  const padMapRef = useRef({ p1: 0, p2: 1 });
 
   const player1GroundedRef = useRef(false);
   const player2GroundedRef = useRef(false);
@@ -127,7 +168,6 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
     x: number;
     y: number;
   } | null>(null);
-
   const [toolMode, setToolMode] = useState<ToolMode>("select");
   const [menuOpen, setMenuOpen] = useState(true);
   const [gameWon, setGameWon] = useState(false);
@@ -165,10 +205,73 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
     console.log("[LEVEL JSON]", { platforms, flags } satisfies SavedLevel);
   };
 
+  // ----- Gamepad polling (requestAnimationFrame) -----
+  useEffect(() => {
+    let raf: number | null = null;
+
+    const tick = () => {
+      const p1Index = padMapRef.current.p1;
+      const p2Index = padMapRef.current.p2;
+
+      const p1 = getPadSnapshot(p1Index);
+      const p2 = getPadSnapshot(p2Index);
+
+      // Left stick X (standard mapping)
+      const p1x = p1.connected ? axisValue(p1.axes[0]) : 0;
+      const p2x = p2.connected ? axisValue(p2.axes[0]) : 0;
+
+      // A / Cross is usually button 0
+      const p1Jump = p1.connected ? !!p1.buttons[0] : false;
+      const p2Jump = p2.connected ? !!p2.buttons[0] : false;
+
+      // Edge detect
+      const prev1 = padsIntentRef.current.p1JumpPrev;
+      const prev2 = padsIntentRef.current.p2JumpPrev;
+
+      padsIntentRef.current.p1Move = p1x;
+      padsIntentRef.current.p2Move = p2x;
+      padsIntentRef.current.p1JumpPressed = p1Jump && !prev1;
+      padsIntentRef.current.p2JumpPressed = p2Jump && !prev2;
+      padsIntentRef.current.p1JumpPrev = p1Jump;
+      padsIntentRef.current.p2JumpPrev = p2Jump;
+
+      raf = requestAnimationFrame(tick);
+    };
+
+    raf = requestAnimationFrame(tick);
+    return () => {
+      if (raf != null) cancelAnimationFrame(raf);
+    };
+  }, []);
+
+  // Optional: if only one controller is connected, auto-map it to P1
+  useEffect(() => {
+    const onConnect = () => {
+      const pads = navigator.getGamepads?.() ?? [];
+      const connectedIdx = pads
+        .map((p, i) => (p && p.connected ? i : -1))
+        .filter((i) => i !== -1);
+
+      if (connectedIdx.length === 1) {
+        padMapRef.current = { p1: connectedIdx[0], p2: -1 as any };
+      } else if (connectedIdx.length >= 2) {
+        padMapRef.current = { p1: connectedIdx[0], p2: connectedIdx[1] };
+      }
+    };
+
+    window.addEventListener("gamepadconnected", onConnect);
+    window.addEventListener("gamepaddisconnected", onConnect);
+    onConnect();
+
+    return () => {
+      window.removeEventListener("gamepadconnected", onConnect);
+      window.removeEventListener("gamepaddisconnected", onConnect);
+    };
+  }, []);
+
   useEffect(() => {
     if (!canvasRef.current) return;
 
-    // reset refs on mount/re-mount
     flagsRef.current = [];
     platformsRef.current = [];
     setFlagStates({});
@@ -186,16 +289,14 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
         width,
         height,
         wireframes: false,
-        background: "transparent", // ✅ camera shows behind
+        background: "transparent",
       },
     });
     renderRef.current = render;
 
-    // Spawn positions scaled to current width/height (based on old 800x600 layout)
     const sx = (x: number) => (x / 800) * width;
     const sy = (y: number) => (y / 600) * height;
 
-    // Player 1
     const player1 = Matter.Bodies.rectangle(sx(100), sy(400), 30, 40, {
       friction: 1,
       frictionAir: 0.01,
@@ -208,7 +309,6 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
     player1Ref.current = player1;
     Matter.World.add(world, player1);
 
-    // Player 2
     const player2 = Matter.Bodies.rectangle(sx(700), sy(400), 30, 40, {
       friction: 1,
       frictionAir: 0.01,
@@ -221,7 +321,6 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
     player2Ref.current = player2;
     Matter.World.add(world, player2);
 
-    // Ground (scaled positions)
     const groundSegments = [
       Matter.Bodies.rectangle(sx(150), sy(550), sx(300), 20, {
         isStatic: true,
@@ -254,7 +353,6 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
     ];
     Matter.World.add(world, groundSegments);
 
-    // Lines from pose -> platforms (already in current width/height coordinates)
     const lineSegments = lines.map((line) => {
       const centerX = (line.start.x + line.end.x) / 2;
       const centerY = (line.start.y + line.end.y) / 2;
@@ -269,7 +367,7 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
 
       return Matter.Bodies.rectangle(centerX, centerY, length, 10, {
         isStatic: true,
-        angle: angle,
+        angle,
         render: { fillStyle: "#4ECDC4" },
         friction: 1,
         label: "ground",
@@ -277,18 +375,14 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
     });
     Matter.World.add(world, lineSegments);
 
-    // Load initial level
     if (initialLevel) {
-      // Platforms
       initialLevel.platforms.forEach((p) => {
         const platform = makePlatformFromEndpoints(p.start, p.end, p.thickness);
         Matter.World.add(world, platform);
         platformsRef.current.push(platform);
       });
 
-      // Flags
       const nextFlagStates: Record<string, boolean> = {};
-
       initialLevel.flags.forEach((f, idx) => {
         const pole = Matter.Bodies.rectangle(f.pole.x, f.pole.y, 5, 100, {
           isStatic: true,
@@ -298,7 +392,6 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
         });
 
         const flagColor = f.playerType === 1 ? "#00FF00" : "#FFA500";
-
         const flag = Matter.Bodies.rectangle(f.flag.x, f.flag.y, 30, 20, {
           isStatic: true,
           render: { fillStyle: flagColor },
@@ -313,23 +406,20 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
           raised: f.raised,
           playerType: f.playerType,
         });
-
         nextFlagStates[`flag_${idx}`] = f.raised;
       });
 
       setFlagStates(nextFlagStates);
     }
 
-    // Collision handling
+    // Collision handling (unchanged)
     Matter.Events.on(engine, "collisionStart", (event) => {
       event.pairs.forEach((pair) => {
         const p1 = player1Ref.current;
         const p2 = player2Ref.current;
 
-        // Player 1
         if (p1 && (pair.bodyA === p1 || pair.bodyB === p1)) {
           const other = pair.bodyA === p1 ? pair.bodyB : pair.bodyA;
-
           flagsRef.current.forEach((flagData, index) => {
             if (
               flagData.playerType === 1 &&
@@ -346,15 +436,12 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
               pair.bodyA === p1
                 ? pair.collision.normal
                 : { x: -pair.collision.normal.x, y: -pair.collision.normal.y };
-
             if (normal.y < -0.5) player1GroundedRef.current = true;
           }
         }
 
-        // Player 2
         if (p2 && (pair.bodyA === p2 || pair.bodyB === p2)) {
           const other = pair.bodyA === p2 ? pair.bodyB : pair.bodyA;
-
           flagsRef.current.forEach((flagData, index) => {
             if (
               flagData.playerType === 2 &&
@@ -371,7 +458,6 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
               pair.bodyA === p2
                 ? pair.collision.normal
                 : { x: -pair.collision.normal.x, y: -pair.collision.normal.y };
-
             if (normal.y < -0.5) player2GroundedRef.current = true;
           }
         }
@@ -386,7 +472,6 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
         const p1 = player1Ref.current;
         const p2 = player2Ref.current;
 
-        // Player 1
         if (p1 && (pair.bodyA === p1 || pair.bodyB === p1)) {
           const other = pair.bodyA === p1 ? pair.bodyB : pair.bodyA;
           if (other.isSensor) return;
@@ -401,7 +486,6 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
           }
         }
 
-        // Player 2
         if (p2 && (pair.bodyA === p2 || pair.bodyB === p2)) {
           const other = pair.bodyA === p2 ? pair.bodyB : pair.bodyA;
           if (other.isSensor) return;
@@ -527,10 +611,28 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
       const jumpForce = -0.04;
       const maxFallSpeed = 15;
 
+      // ---- Merge keyboard + gamepad intents ----
       // Player 1
-      const player1Moving = keysRef.current.a || keysRef.current.d;
-      const player1NoKeys =
-        !keysRef.current.a && !keysRef.current.d && !keysRef.current.w;
+      const gp1 = padsIntentRef.current.p1Move; // -1..1
+      const p1Left = keysRef.current.a || gp1 < -0.25;
+      const p1Right = keysRef.current.d || gp1 > 0.25;
+      const p1JumpEdge =
+        keysRef.current.w || padsIntentRef.current.p1JumpPressed;
+
+      // Player 2
+      const gp2 = padsIntentRef.current.p2Move;
+      const p2Left = keysRef.current.left || gp2 < -0.25;
+      const p2Right = keysRef.current.right || gp2 > 0.25;
+      const p2JumpEdge =
+        keysRef.current.up || padsIntentRef.current.p2JumpPressed;
+
+      // clear one-shot jump edges from gamepad after reading
+      padsIntentRef.current.p1JumpPressed = false;
+      padsIntentRef.current.p2JumpPressed = false;
+
+      // Player 1 movement
+      const player1Moving = p1Left || p1Right;
+      const player1NoKeys = !p1Left && !p1Right && !p1JumpEdge;
 
       applySlopeStick(
         player1Ref.current,
@@ -539,12 +641,12 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
         player1Moving
       );
 
-      if (keysRef.current.a) {
+      if (p1Left) {
         Matter.Body.setVelocity(player1Ref.current, {
           x: -moveSpeed,
           y: player1Ref.current.velocity.y,
         });
-      } else if (keysRef.current.d) {
+      } else if (p1Right) {
         Matter.Body.setVelocity(player1Ref.current, {
           x: moveSpeed,
           y: player1Ref.current.velocity.y,
@@ -576,19 +678,18 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
         });
       }
 
-      if (keysRef.current.w && player1GroundedRef.current) {
+      if (p1JumpEdge && player1GroundedRef.current) {
         Matter.Body.applyForce(
           player1Ref.current,
           player1Ref.current.position,
           { x: 0, y: jumpForce }
         );
-        keysRef.current.w = false;
+        keysRef.current.w = false; // consume keyboard jump
       }
 
-      // Player 2
-      const player2Moving = keysRef.current.left || keysRef.current.right;
-      const player2NoKeys =
-        !keysRef.current.left && !keysRef.current.right && !keysRef.current.up;
+      // Player 2 movement
+      const player2Moving = p2Left || p2Right;
+      const player2NoKeys = !p2Left && !p2Right && !p2JumpEdge;
 
       applySlopeStick(
         player2Ref.current,
@@ -597,12 +698,12 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
         player2Moving
       );
 
-      if (keysRef.current.left) {
+      if (p2Left) {
         Matter.Body.setVelocity(player2Ref.current, {
           x: -moveSpeed,
           y: player2Ref.current.velocity.y,
         });
-      } else if (keysRef.current.right) {
+      } else if (p2Right) {
         Matter.Body.setVelocity(player2Ref.current, {
           x: moveSpeed,
           y: player2Ref.current.velocity.y,
@@ -634,7 +735,7 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
         });
       }
 
-      if (keysRef.current.up && player2GroundedRef.current) {
+      if (p2JumpEdge && player2GroundedRef.current) {
         Matter.Body.applyForce(
           player2Ref.current,
           player2Ref.current.position,
@@ -657,16 +758,12 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
       Matter.Events.off(engine, "beforeUpdate", gameLoop);
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
-
       try {
         render.canvas.remove();
-      } catch {
-        // ignore
-      }
+      } catch {}
     };
   }, [lines, initialLevel, width, height]);
 
-  // Raise flag visual
   useEffect(() => {
     flagsRef.current.forEach((flagData, index) => {
       if (flagStates[`flag_${index}`] && flagData.raised) {
@@ -682,7 +779,6 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
     });
   }, [flagStates]);
 
-  // win
   useEffect(() => {
     if (flagsRef.current.length > 0) {
       const allRaised = flagsRef.current.every((flag) => flag.raised);
@@ -693,14 +789,12 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
     }
   }, [flagStates, gameWon]);
 
-  // Click tools
   const handleCanvasClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (gameWon || !renderRef.current || !engineRef.current) return;
 
     const canvas = renderRef.current.canvas;
     const rect = canvas.getBoundingClientRect();
 
-    // map click to render coords
     const x = ((e.clientX - rect.left) / rect.width) * width;
     const y = ((e.clientY - rect.top) / rect.height) * height;
 
@@ -960,7 +1054,6 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
         </div>
       )}
 
-      {/* Win overlay */}
       {gameWon && (
         <div
           style={{
@@ -1043,13 +1136,13 @@ export const PlatformerGame: React.FC<PlatformerGameProps> = ({
           <span style={{ color: "#00FF00", fontWeight: "bold" }}>
             Player 1 (Green)
           </span>
-          : A = Left, D = Right, W = Jump
+          : A/D/W or Gamepad0 (Left stick + A)
         </div>
         <div>
           <span style={{ color: "#FFA500", fontWeight: "bold" }}>
             Player 2 (Orange)
           </span>
-          : ← = Left, → = Right, ↑ = Jump
+          : ←/→/↑ or Gamepad1 (Left stick + A)
         </div>
       </div>
     </div>
