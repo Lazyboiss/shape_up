@@ -89,10 +89,22 @@ const makePlatformFromEndpoints = (
       },
     };
   } else if (type === "permanent") {
-    renderOptions = { fillStyle: "#3498DB" };
+    renderOptions = { 
+      sprite: {
+        texture: ASSETS.FIXED_PLATFORM,
+        xScale: length / 500,
+        yScale: thickness / 64,
+      } 
+    };
   } else {
     // temporary
-    renderOptions = { fillStyle: "#9B59B6" };
+    renderOptions = {
+      sprite: {
+        texture: ASSETS.POSE_PLATFORM,
+        xScale: length / 500,
+        yScale: thickness / 64,
+      },
+    };
   }
 
   const platform = Matter.Bodies.rectangle(

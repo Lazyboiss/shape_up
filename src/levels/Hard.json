@@ -1,0 +1,78 @@
+{
+  "platforms": [
+    {
+      "start": {
+        "x": -24,
+        "y": 571
+      },
+      "end": {
+        "x": 850,
+        "y": 575
+      },
+      "thickness": 10,
+      "type": "ground"
+    },
+    {
+      "start": {
+        "x": 406,
+        "y": 432
+      },
+      "end": {
+        "x": 410,
+        "y": 582
+      },
+      "thickness": 10,
+      "type": "permanent"
+    },
+    {
+      "start": {
+        "x": 401,
+        "y": 1
+      },
+      "end": {
+        "x": 400,
+        "y": 138
+      },
+      "thickness": 10,
+      "type": "permanent"
+    },
+    {
+      "start": {
+        "x": 266,
+        "y": 141
+      },
+      "end": {
+        "x": 564,
+        "y": 146
+      },
+      "thickness": 10,
+      "type": "permanent"
+    }
+  ],
+  "flags": [
+    {
+      "playerType": 1,
+      "flag": {
+        "x": 507,
+        "y": 59
+      },
+      "raised": false
+    },
+    {
+      "playerType": 2,
+      "flag": {
+        "x": 320,
+        "y": 66
+      },
+      "raised": false
+    }
+  ],
+  "player1Spawn": {
+    "x": 336,
+    "y": 498
+  },
+  "player2Spawn": {
+    "x": 499,
+    "y": 488
+  }
+}
