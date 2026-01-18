@@ -1,78 +1,42 @@
 {
   "platforms": [
     {
-      "start": {
-        "x": -24,
-        "y": 571
-      },
-      "end": {
-        "x": 850,
-        "y": 575
-      },
-      "thickness": 10,
+      "start": { "x": -36, "y": 856.5 },
+      "end": { "x": 1275, "y": 862.5 },
+      "thickness": 15,
       "type": "ground"
     },
     {
-      "start": {
-        "x": 406,
-        "y": 432
-      },
-      "end": {
-        "x": 410,
-        "y": 582
-      },
-      "thickness": 10,
+      "start": { "x": 609, "y": 648 },
+      "end": { "x": 615, "y": 873 },
+      "thickness": 15,
       "type": "permanent"
     },
     {
-      "start": {
-        "x": 401,
-        "y": 1
-      },
-      "end": {
-        "x": 400,
-        "y": 138
-      },
-      "thickness": 10,
+      "start": { "x": 601.5, "y": 1.5 },
+      "end": { "x": 600, "y": 207 },
+      "thickness": 15,
       "type": "permanent"
     },
     {
-      "start": {
-        "x": 266,
-        "y": 141
-      },
-      "end": {
-        "x": 564,
-        "y": 146
-      },
-      "thickness": 10,
+      "start": { "x": 399, "y": 211.5 },
+      "end": { "x": 846, "y": 219 },
+      "thickness": 15,
       "type": "permanent"
     }
   ],
   "flags": [
     {
       "playerType": 1,
-      "flag": {
-        "x": 507,
-        "y": 59
-      },
+      "flag": { "x": 760.5, "y": 88.5 },
       "raised": false
     },
     {
       "playerType": 2,
-      "flag": {
-        "x": 320,
-        "y": 66
-      },
+      "flag": { "x": 480, "y": 99 },
       "raised": false
     }
   ],
-  "player1Spawn": {
-    "x": 336,
-    "y": 498
-  },
-  "player2Spawn": {
-    "x": 499,
-    "y": 488
-  }
+  "player1Spawn": { "x": 504, "y": 747 },
+  "player2Spawn": { "x": 748.5, "y": 732 }
 }

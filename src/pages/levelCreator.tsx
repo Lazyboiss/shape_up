@@ -85,16 +85,16 @@ const makePlatformFromEndpoints = (
       sprite: {
         texture: ASSETS.GROUND,
         xScale: length / 500,
-        yScale: thickness / 64,
+        yScale: thickness / 400,
       },
     };
   } else if (type === "permanent") {
-    renderOptions = { 
+    renderOptions = {
       sprite: {
         texture: ASSETS.FIXED_PLATFORM,
         xScale: length / 500,
         yScale: thickness / 64,
-      } 
+      }
     };
   } else {
     // temporary

@@ -2,7 +2,9 @@ import "@/App.css";
 import { useMemo, useState, useCallback } from "react";
 import Hero from "@/components/Hero";
 import level1JSON from "@/levels/level1.json";
-import level2JSON from "@/levels/level1.json";
+import level2JSON from "@/levels/Easy.json";
+import level3JSON from "@/levels/Medium.json";
+import level4JSON from "@/levels/Hard.json";
 import PoseGame, { type SavedLevel } from "@/components/PoseGame";
 import { PoseDetectorProvider } from "@/contexts/PoseDetectorContext";
 
@@ -14,6 +16,8 @@ function GameContent() {
     () => [
       level1JSON as unknown as SavedLevel,
       level2JSON as unknown as SavedLevel,
+      level3JSON as unknown as SavedLevel,
+      level4JSON as unknown as SavedLevel,
     ],
     []
   );
@@ -45,7 +49,6 @@ function GameContent() {
             loadLevel={selectedLevel}
             width={1200}
             height={900}
-            poseTime={20}
             onWin={handleWin}
             onRestart={handleRestart}
           />

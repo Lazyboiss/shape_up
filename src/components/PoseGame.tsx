@@ -254,7 +254,7 @@ const makePlatformFromEndpoints = (
       sprite: {
         texture: ASSETS.GROUND,
         xScale: length / 500,
-        yScale: thickness / 64,
+        yScale: thickness / 400,
       },
     };
   } else if (type === "permanent") {
@@ -292,7 +292,7 @@ export const PoseGame: React.FC<PoseGameProps> = ({
   loadLevel,
   width = 1200,
   height = 900,
-  poseTime = 20,
+  poseTime = 2,
   onWin,
   onRestart,
 }) => {
@@ -435,7 +435,7 @@ export const PoseGame: React.FC<PoseGameProps> = ({
     (ctx: CanvasRenderingContext2D, w: number, h: number) => {
       // Draw existing platforms from level
       ctx.save();
-      ctx.globalAlpha = 0.7;
+      ctx.globalAlpha = 1;
 
       loadLevel.platforms.forEach((p) => {
         const centerX = (p.start.x + p.end.x) / 2;
@@ -447,19 +447,20 @@ export const PoseGame: React.FC<PoseGameProps> = ({
         ctx.translate(centerX, centerY);
         ctx.rotate(angle);
 
-        if (p.type === "ground" && loadedImages.ground) {
+        if (p.type === "ground") {
           // Draw ground texture
-          const pattern = ctx.createPattern(loadedImages.ground, "repeat");
-          if (pattern) {
-            ctx.fillStyle = pattern;
-            ctx.fillRect(-length / 2, -p.thickness / 2, length, p.thickness);
+          if (loadedImages.ground) {
+            ctx.drawImage(
+              loadedImages.ground,
+              -length / 2,
+              -p.thickness / 2,
+              length,
+              p.thickness
+            );
           } else {
             ctx.fillStyle = "#8B4513";
             ctx.fillRect(-length / 2, -p.thickness / 2, length, p.thickness);
           }
-        } else if (p.type === "ground") {
-          ctx.fillStyle = "#8B4513";
-          ctx.fillRect(-length / 2, -p.thickness / 2, length, p.thickness);
         } else {
           ctx.fillStyle = "#3498DB";
           ctx.fillRect(-length / 2, -p.thickness / 2, length, p.thickness);
@@ -559,7 +560,7 @@ export const PoseGame: React.FC<PoseGameProps> = ({
           );
         } else {
           // Fallback drawing
-          ctx.fillStyle = "#333333";
+          ctx.fillStyle = "#pink";
           ctx.fillRect(f.flag.x - 3, f.flag.y - 40, 6, 80);
 
           ctx.fillStyle = f.playerType === 1 ? "#00FF00" : "#FFA500";
@@ -714,8 +715,8 @@ export const PoseGame: React.FC<PoseGameProps> = ({
 
             if (newPoses.length > 0) {
               for (const pose of newPoses) {
-                drawKeypoints(pose.keypoints, 0.5, ctx, 1, "pink");
-                drawSkeleton(pose.keypoints, 0.5, ctx, 1, "pink");
+                drawKeypoints(pose.keypoints, 0.25, ctx, 1, "pink");
+                drawSkeleton(pose.keypoints, 0.25, ctx, 1, "pink");
               }
             }
 
@@ -728,7 +729,7 @@ export const PoseGame: React.FC<PoseGameProps> = ({
               const liveLines = posesToPlatformLines(newPoses, width, height);
               octx.save();
               octx.globalAlpha = 0.8;
-              octx.strokeStyle = "#9B59B6";
+              octx.strokeStyle = "#9B59B6"; // POSE PLATFORM COLOR
               octx.lineWidth = PLATFORM_THICKNESS;
               octx.lineCap = "round";
               for (const l of liveLines) {

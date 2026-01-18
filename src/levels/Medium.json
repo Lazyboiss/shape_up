@@ -2,62 +2,62 @@
   "platforms": [
     {
       "start": {
-        "x": -16,
-        "y": 571
+        "x": -24,
+        "y": 857
       },
       "end": {
-        "x": 901,
-        "y": 578
+        "x": 1352,
+        "y": 867
       },
-      "thickness": 10,
+      "thickness": 15,
       "type": "ground"
     },
     {
       "start": {
-        "x": 83,
-        "y": 148
-      },
-      "end": {
-        "x": 178,
-        "y": 149
-      },
-      "thickness": 10,
-      "type": "permanent"
-    },
-    {
-      "start": {
-        "x": 325,
-        "y": 1
-      },
-      "end": {
-        "x": 326,
-        "y": 231
-      },
-      "thickness": 10,
-      "type": "permanent"
-    },
-    {
-      "start": {
-        "x": 330,
+        "x": 125,
         "y": 222
       },
       "end": {
-        "x": 521,
+        "x": 267,
         "y": 224
       },
-      "thickness": 10,
+      "thickness": 15,
       "type": "permanent"
     },
     {
       "start": {
-        "x": 489,
-        "y": 416
+        "x": 488,
+        "y": 2
       },
       "end": {
-        "x": 491,
-        "y": 536
+        "x": 489,
+        "y": 347
       },
-      "thickness": 10,
+      "thickness": 15,
+      "type": "permanent"
+    },
+    {
+      "start": {
+        "x": 495,
+        "y": 333
+      },
+      "end": {
+        "x": 782,
+        "y": 336
+      },
+      "thickness": 15,
+      "type": "permanent"
+    },
+    {
+      "start": {
+        "x": 734,
+        "y": 624
+      },
+      "end": {
+        "x": 737,
+        "y": 804
+      },
+      "thickness": 15,
       "type": "permanent"
     }
   ],
@@ -65,26 +65,26 @@
     {
       "playerType": 2,
       "flag": {
-        "x": 416,
-        "y": 150
+        "x": 624,
+        "y": 225
       },
       "raised": false
     },
     {
       "playerType": 1,
       "flag": {
-        "x": 666,
-        "y": 483
+        "x": 999,
+        "y": 725
       },
       "raised": false
     }
   ],
   "player1Spawn": {
-    "x": 119,
-    "y": 496
+    "x": 179,
+    "y": 744
   },
   "player2Spawn": {
-    "x": 122,
-    "y": 68
+    "x": 183,
+    "y": 102
   }
 }

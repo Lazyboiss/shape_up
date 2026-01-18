@@ -49,7 +49,7 @@ export default function Home({ setLevel }: HomeProps) {
 
       <Dialog>
         <DialogTrigger asChild>
-          <Button className="rounded-md bg-blue-500 px-6 py-5 text-xl font-semibold text-white hover:bg-blue-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500">
+          <Button className="rounded-md bg-purple-500 px-6 py-5 text-xl font-semibold text-white hover:bg-purple-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500">
             How To Play
           </Button>
         </DialogTrigger>
@@ -102,23 +102,30 @@ export default function Home({ setLevel }: HomeProps) {
       <div className="flex gap-6 mt-10 flex-wrap justify-center">
         <Button
           onClick={() => setLevel(1)}
-          className="rounded-md bg-green-500 px-6 py-3 text-4xl h-fit font-semibold text-white hover:bg-green-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-500"
+          className="rounded-md bg-blue-500 px-6 py-3 text-4xl h-fit font-semibold text-white hover:bg-blue-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
         >
           Level 1
         </Button>
 
         <Button
           onClick={() => setLevel(2)}
-          className="rounded-md bg-yellow-500 px-6 py-3 text-4xl h-fit font-semibold text-white hover:bg-yellow-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow-500"
+          className="rounded-md bg-green-500 px-6 py-3 text-4xl h-fit font-semibold text-white hover:bg-green-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-500"
         >
           Level 2
         </Button>
 
         <Button
           onClick={() => setLevel(3)}
-          className="rounded-md bg-red-500 px-6 py-3 text-4xl h-fit font-semibold text-white hover:bg-red-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500"
+          className="rounded-md bg-yellow-500 px-6 py-3 text-4xl h-fit font-semibold text-white hover:bg-yellow-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow-500"
         >
           Level 3
+        </Button>
+
+        <Button
+          onClick={() => setLevel(4)}
+          className="rounded-md bg-red-500 px-6 py-3 text-4xl h-fit font-semibold text-white hover:bg-red-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500"
+        >
+          Level 4
         </Button>
       </div>
     </>

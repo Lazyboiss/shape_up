@@ -7,8 +7,14 @@ export function drawKeypoints(
   scale = 1,
   color = "aqua"
 ) {
+  const exclude = ["nose", "left_eye", "right_eye", "left_ear", "right_ear"];
   for (const keypoint of keypoints) {
-    if (keypoint.score && keypoint.score > minConfidence) {
+    if (
+      keypoint.score &&
+      keypoint.score > minConfidence &&
+      keypoint.name &&
+      !exclude.includes(keypoint.name)
+    ) {
       drawPoint(ctx, keypoint.y * scale, keypoint.x * scale, 4, color);
     }
   }
@@ -64,10 +70,10 @@ export function getAdjacentKeyPoints(
   minConfidence: number
 ): [poseDetection.Keypoint, poseDetection.Keypoint][] {
   const connected: [number, number][] = [
-    [0, 1],
-    [0, 2],
-    [1, 3],
-    [2, 4],
+    // [0, 1],
+    // [0, 2],
+    // [1, 3],
+    // [2, 4],
     [5, 7],
     [7, 9],
     [6, 8],
