@@ -25,16 +25,16 @@ type HomeProps = {
 };
 
 export default function Home({ setLevel }: HomeProps) {
-  const plugin = useRef(Autoplay({ delay: 1500, stopOnInteraction: false }));
+  const plugin = useRef(Autoplay({ delay: 2000, stopOnInteraction: false }));
 
   const howToPlay = useMemo(
     () => [
-      "Pick a level",
-      "Study the level",
-      "Press A to get ready (P1 & P2)",
-      "You have 30s to pose (P1 & P2)",
-      "Poses convert into platforms",
-      "You have 60s to reach your goal",
+      { text: "Pick a level", image: "/Step 1.png" },
+      { text: "Study the level", image: "/Step 2.png" },
+      { text: "Press A to get ready (P1 & P2)", image: "/Step 3.png" },
+      { text: "You have 30s to pose (P1 & P2)", image: "/Step 4.png" },
+      { text: "Poses convert into platforms", image: "/Step 5.png" },
+      { text: "You have 60s to reach your goal", image: "/Step 6.png" },
     ],
     []
   );
@@ -73,9 +73,10 @@ export default function Home({ setLevel }: HomeProps) {
                   <CarouselItem key={index}>
                     <div className="p-1">
                       <Card>
-                        <CardContent className="flex aspect-square items-center justify-center p-6 text-center">
-                          <span className="text-2xl font-semibold">
-                            {index + 1}. {step}
+                        <CardContent className="flex flex-col aspect-square items-center justify-center p-6 text-center">
+                          <img src={step["image"]} />
+                          <span className="text-2xl font-semibold mt-auto">
+                            {index + 1}. {step["text"]}
                           </span>
                         </CardContent>
                       </Card>
