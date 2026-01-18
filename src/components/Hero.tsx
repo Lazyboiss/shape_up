@@ -40,24 +40,35 @@ export default function Home({ setLevel }: HomeProps) {
   );
 
   return (
-    <>
+    <div className="min-h-screen bg-black flex flex-col items-center justify-center p-8">
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        
+        * {
+          font-family: 'Press Start 2P', cursive;
+        }
+      `}</style>
+
       <img
         src="/SHAPEUP.png"
         alt="Shape Up"
-        className="w-full max-w-md aspect-[4/3] object-cover"
+        className="w-full max-w-md aspect-[4/3] object-cover mb-8 pixelated"
+        style={{ imageRendering: 'pixelated' }}
       />
 
       <Dialog>
         <DialogTrigger asChild>
-          <Button className="rounded-md bg-purple-500 px-6 py-5 text-xl font-semibold text-white hover:bg-purple-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500">
-            How To Play
+          <Button 
+            className="rounded-none border-4 border-[#00FF00] bg-black px-6 py-6 text-base font-bold text-[#00FF00] hover:bg-[#00FF00] hover:text-black transition-all duration-200 shadow-[4px_4px_0px_0px_#00FF00] hover:shadow-[2px_2px_0px_0px_#00FF00] active:shadow-none mb-10"
+          >
+            HOW TO PLAY
           </Button>
         </DialogTrigger>
 
-        <DialogContent>
+        <DialogContent className="bg-black border-4 border-[#00FF00] text-[#00FF00] rounded-none">
           <DialogHeader>
-            <DialogTitle>How To Play</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-[#00FF00] text-xl">HOW TO PLAY</DialogTitle>
+            <DialogDescription className="text-[#00FF00]/80 text-xs leading-relaxed">
               A beginner&#39;s guide to Shape Up!
             </DialogDescription>
           </DialogHeader>
@@ -72,10 +83,14 @@ export default function Home({ setLevel }: HomeProps) {
                 {howToPlay.map((step, index) => (
                   <CarouselItem key={index}>
                     <div className="p-1">
-                      <Card>
+                      <Card className="bg-black border-2 border-[#00FF00] rounded-none">
                         <CardContent className="flex flex-col aspect-square items-center justify-center p-6 text-center">
-                          <img src={step["image"]} />
-                          <span className="text-2xl font-semibold mt-auto">
+                          <img 
+                            src={step["image"]} 
+                            className="mb-4"
+                            style={{ imageRendering: 'pixelated' }}
+                          />
+                          <span className="text-sm font-semibold text-[#00FF00] leading-relaxed mt-auto">
                             {index + 1}. {step["text"]}
                           </span>
                         </CardContent>
@@ -84,50 +99,53 @@ export default function Home({ setLevel }: HomeProps) {
                   </CarouselItem>
                 ))}
               </CarouselContent>
-              <CarouselPrevious />
-              <CarouselNext />
+              <CarouselPrevious className="bg-black border-2 border-[#00FF00] text-[#00FF00] hover:bg-[#00FF00] hover:text-black" />
+              <CarouselNext className="bg-black border-2 border-[#00FF00] text-[#00FF00] hover:bg-[#00FF00] hover:text-black" />
             </Carousel>
           </div>
 
           <DialogFooter className="sm:justify-center">
             <DialogClose asChild>
-              <Button type="button" variant="secondary">
-                Close
+              <Button 
+                type="button" 
+                className="bg-black border-2 border-[#00FF00] text-[#00FF00] hover:bg-[#00FF00] hover:text-black rounded-none"
+              >
+                CLOSE
               </Button>
             </DialogClose>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <div className="flex gap-6 mt-10 flex-wrap justify-center">
+      <div className="flex gap-6 mt-4 flex-wrap justify-center max-w-2xl">
         <Button
           onClick={() => setLevel(1)}
-          className="rounded-md bg-blue-500 px-6 py-3 text-4xl h-fit font-semibold text-white hover:bg-blue-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+          className="rounded-none border-4 border-[#00FF00] bg-black px-8 py-6 text-2xl h-fit font-bold text-[#00FF00] hover:bg-[#00FF00] hover:text-black transition-all duration-200 shadow-[6px_6px_0px_0px_#00FF00] hover:shadow-[3px_3px_0px_0px_#00FF00] active:shadow-none"
         >
-          Level 1
+          LEVEL 1
         </Button>
 
         <Button
           onClick={() => setLevel(2)}
-          className="rounded-md bg-green-500 px-6 py-3 text-4xl h-fit font-semibold text-white hover:bg-green-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-500"
+          className="rounded-none border-4 border-[#FF8C00] bg-black px-8 py-6 text-2xl h-fit font-bold text-[#FF8C00] hover:bg-[#FF8C00] hover:text-black transition-all duration-200 shadow-[6px_6px_0px_0px_#FF8C00] hover:shadow-[3px_3px_0px_0px_#FF8C00] active:shadow-none"
         >
-          Level 2
+          LEVEL 2
         </Button>
 
         <Button
           onClick={() => setLevel(3)}
-          className="rounded-md bg-yellow-500 px-6 py-3 text-4xl h-fit font-semibold text-white hover:bg-yellow-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow-500"
+          className="rounded-none border-4 border-[#00FF00] bg-black px-8 py-6 text-2xl h-fit font-bold text-[#00FF00] hover:bg-[#00FF00] hover:text-black transition-all duration-200 shadow-[6px_6px_0px_0px_#00FF00] hover:shadow-[3px_3px_0px_0px_#00FF00] active:shadow-none"
         >
-          Level 3
+          LEVEL 3
         </Button>
 
         <Button
           onClick={() => setLevel(4)}
-          className="rounded-md bg-red-500 px-6 py-3 text-4xl h-fit font-semibold text-white hover:bg-red-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500"
+          className="rounded-none border-4 border-[#FF8C00] bg-black px-8 py-6 text-2xl h-fit font-bold text-[#FF8C00] hover:bg-[#FF8C00] hover:text-black transition-all duration-200 shadow-[6px_6px_0px_0px_#FF8C00] hover:shadow-[3px_3px_0px_0px_#FF8C00] active:shadow-none"
         >
-          Level 4
+          LEVEL 4
         </Button>
       </div>
-    </>
+    </div>
   );
 }
