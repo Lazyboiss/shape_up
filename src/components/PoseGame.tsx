@@ -78,6 +78,12 @@ interface PoseGameProps {
   gameTime?: number;
   onWin?: () => void;
   onRestart?: () => void;
+  onJumpSfx?: () => void;
+  onWinSfx?: () => void;
+  onLoseSfx?: () => void;
+  onFlagSfx?: () => void;
+  onCountdownBeep?: () => void;
+  onCountdownGo?: () => void;
 }
 
 // ============ POSE DETECTION HELPERS ============
@@ -297,6 +303,12 @@ export const PoseGame: React.FC<PoseGameProps> = ({
   gameTime = 60,
   onWin,
   onRestart,
+  onJumpSfx,
+  onWinSfx,
+  onLoseSfx,
+  onFlagSfx,
+  onCountdownBeep,
+  onCountdownGo,
 }) => {
   // Use the persistent detector from context
   const {
@@ -980,6 +992,7 @@ export const PoseGame: React.FC<PoseGameProps> = ({
               otherBody === flagData.flag &&
               !flagData.raised
             ) {
+              onFlagSfx?.();
               flagData.raised = true;
               setFlagStates((prev) => ({ ...prev, [`flag_${index}`]: true }));
             }
@@ -1162,6 +1175,7 @@ export const PoseGame: React.FC<PoseGameProps> = ({
       }
       if (e.key === "ArrowUp") {
         e.preventDefault();
+        onJumpSfx?.();
         keysRef.current.up = true;
         player2LockedPositionRef.current = null;
       }
@@ -1411,6 +1425,7 @@ export const PoseGame: React.FC<PoseGameProps> = ({
       const allRaised = flagsRef.current.every((flag) => flag.raised);
       if (allRaised && !gameWon) {
         setGameWon(true);
+        onWinSfx?.();
         onWin?.();
       }
     }
@@ -1509,6 +1524,7 @@ export const PoseGame: React.FC<PoseGameProps> = ({
 
     setGameOver(true);
     gameOverRef.current = true;
+    onLoseSfx?.();
   }, [phase, gameSecondsLeft, gameWon]);
 
   // Show loading state while model is loading
@@ -1625,7 +1641,11 @@ export const PoseGame: React.FC<PoseGameProps> = ({
               </div>
             </div>
           )}
-
+          {secondsLeft <= 3 && (
+            <div className="absolute inset-0 w-full h-full flex items-center justify-center text-7xl bg-black/20 ">
+              <span className="animate-ping font-bold">{secondsLeft}</span>
+            </div>
+          )}
           {/* Loading */}
           {isLoading && (
             <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60">
@@ -1670,7 +1690,7 @@ export const PoseGame: React.FC<PoseGameProps> = ({
           <div
             key={`game-${gameRunId}`} // ✅ force remount on retry
             ref={gameCanvasRef}
-            className="absolute inset-0"
+            className="absolute inset-0 border-black border-2"
             style={{ width, height }}
           />
 

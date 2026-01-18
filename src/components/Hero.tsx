@@ -22,9 +22,10 @@ import { useMemo, useRef } from "react";
 
 type HomeProps = {
   setLevel: (level: number) => void;
+  startBgm: () => void;
 };
 
-export default function Home({ setLevel }: HomeProps) {
+export default function Home({ setLevel, startBgm }: HomeProps) {
   const plugin = useRef(Autoplay({ delay: 2000, stopOnInteraction: false }));
 
   const howToPlay = useMemo(
@@ -40,10 +41,13 @@ export default function Home({ setLevel }: HomeProps) {
   );
 
   return (
-    <div className="min-h-screen bg-black flex flex-col items-center justify-center p-8">
+    <div
+      className="min-h-screen bg-black flex flex-col items-center justify-center p-8"
+      onClick={() => startBgm()}
+    >
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
-        
+
         * {
           font-family: 'Press Start 2P', cursive;
         }
@@ -53,21 +57,21 @@ export default function Home({ setLevel }: HomeProps) {
         src="/SHAPEUP.png"
         alt="Shape Up"
         className="w-full max-w-md aspect-[4/3] object-cover mb-8 pixelated"
-        style={{ imageRendering: 'pixelated' }}
+        style={{ imageRendering: "pixelated" }}
       />
 
       <Dialog>
         <DialogTrigger asChild>
-          <Button 
-            className="rounded-none border-4 border-[#00FF00] bg-black px-6 py-6 text-base font-bold text-[#00FF00] hover:bg-[#00FF00] hover:text-black transition-all duration-200 shadow-[4px_4px_0px_0px_#00FF00] hover:shadow-[2px_2px_0px_0px_#00FF00] active:shadow-none mb-10"
-          >
+          <Button className="rounded-none border-4 border-[#00FF00] bg-black px-6 py-6 text-base font-bold text-[#00FF00] hover:bg-[#00FF00] hover:text-black transition-all duration-200 shadow-[4px_4px_0px_0px_#00FF00] hover:shadow-[2px_2px_0px_0px_#00FF00] active:shadow-none mb-10">
             HOW TO PLAY
           </Button>
         </DialogTrigger>
 
         <DialogContent className="bg-black border-4 border-[#00FF00] text-[#00FF00] rounded-none">
           <DialogHeader>
-            <DialogTitle className="text-[#00FF00] text-xl">HOW TO PLAY</DialogTitle>
+            <DialogTitle className="text-[#00FF00] text-xl">
+              HOW TO PLAY
+            </DialogTitle>
             <DialogDescription className="text-[#00FF00]/80 text-xs leading-relaxed">
               A beginner&#39;s guide to Shape Up!
             </DialogDescription>
@@ -85,10 +89,10 @@ export default function Home({ setLevel }: HomeProps) {
                     <div className="p-1">
                       <Card className="bg-black border-2 border-[#00FF00] rounded-none">
                         <CardContent className="flex flex-col aspect-square items-center justify-center p-6 text-center">
-                          <img 
-                            src={step["image"]} 
+                          <img
+                            src={step["image"]}
                             className="mb-4"
-                            style={{ imageRendering: 'pixelated' }}
+                            style={{ imageRendering: "pixelated" }}
                           />
                           <span className="text-sm font-semibold text-[#00FF00] leading-relaxed mt-auto">
                             {index + 1}. {step["text"]}
@@ -106,8 +110,8 @@ export default function Home({ setLevel }: HomeProps) {
 
           <DialogFooter className="sm:justify-center">
             <DialogClose asChild>
-              <Button 
-                type="button" 
+              <Button
+                type="button"
                 className="bg-black border-2 border-[#00FF00] text-[#00FF00] hover:bg-[#00FF00] hover:text-black rounded-none"
               >
                 CLOSE
