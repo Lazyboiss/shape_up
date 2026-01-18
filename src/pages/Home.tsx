@@ -39,7 +39,7 @@ function GameContent() {
   }, []);
 
   return (
-    <div className="fullHeight bg-sky-300 w-full text-white flex flex-col justify-center items-center gap-6">
+    <div className="fullHeight bg-black w-full text-white flex flex-col justify-center items-center gap-6">
       {level === 0 ? <Hero setLevel={setLevel} /> : null}
 
       {level !== 0 && selectedLevel ? (
