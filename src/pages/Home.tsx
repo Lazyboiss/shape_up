@@ -7,6 +7,7 @@ import level3JSON from "@/levels/Medium.json";
 import level4JSON from "@/levels/Hard.json";
 import PoseGame, { type SavedLevel } from "@/components/PoseGame";
 import { PoseDetectorProvider } from "@/contexts/PoseDetectorContext";
+import { cn } from "@/lib/utils";
 
 function GameContent() {
   const [level, setLevel] = useState<number>(0);
@@ -39,7 +40,12 @@ function GameContent() {
   }, []);
 
   return (
-    <div className="fullHeight bg-black w-full text-white flex flex-col justify-center items-center gap-6">
+    <div
+      className={cn(
+        "fullHeight w-full text-white flex flex-col justify-center items-center gap-6",
+        level === 0 ? "bg-black" : "bg-sky-300"
+      )}
+    >
       {level === 0 ? <Hero setLevel={setLevel} /> : null}
 
       {level !== 0 && selectedLevel ? (
