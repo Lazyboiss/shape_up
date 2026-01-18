@@ -51,6 +51,7 @@ function GameContent() {
             height={900}
             onWin={handleWin}
             onRestart={handleRestart}
+            gameTime={level == differentLevels.length - 1 ? 1000 : 60}
           />
 
           {/* Back to Menu button */}

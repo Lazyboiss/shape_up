@@ -75,6 +75,7 @@ interface PoseGameProps {
   width?: number;
   height?: number;
   poseTime?: number;
+  gameTime?: number;
   onWin?: () => void;
   onRestart?: () => void;
 }
@@ -292,7 +293,8 @@ export const PoseGame: React.FC<PoseGameProps> = ({
   loadLevel,
   width = 1200,
   height = 900,
-  poseTime = 2,
+  poseTime = 10,
+  gameTime = 60,
   onWin,
   onRestart,
 }) => {
@@ -302,6 +304,14 @@ export const PoseGame: React.FC<PoseGameProps> = ({
     isLoading: modelLoading,
     error: modelError,
   } = usePoseDetector();
+
+  const [gameSecondsLeft, setGameSecondsLeft] = useState(gameTime);
+  const [gameOver, setGameOver] = useState(false);
+
+  // used to force re-mount / rebuild the Matter game without changing phase
+  const [gameRunId, setGameRunId] = useState(0);
+
+  const gameOverRef = useRef(false);
 
   // Phase management
   const [phase, setPhase] = useState<Phase>("ready");
@@ -809,6 +819,10 @@ export const PoseGame: React.FC<PoseGameProps> = ({
   // ============ GAME PHASE ============
 
   useEffect(() => {
+    gameOverRef.current = gameOver;
+  }, [gameOver]);
+
+  useEffect(() => {
     if (phase !== "game") return;
     if (!gameCanvasRef.current) return;
 
@@ -1169,6 +1183,7 @@ export const PoseGame: React.FC<PoseGameProps> = ({
     // Game loop
     const gameLoop = () => {
       if (!player1Ref.current || !player2Ref.current) return;
+      if (gameOverRef.current) return;
 
       const moveSpeed = 5;
       const jumpForce = -0.04;
@@ -1371,7 +1386,7 @@ export const PoseGame: React.FC<PoseGameProps> = ({
       platformsRef.current = [];
       flagsRef.current = [];
     };
-  }, [phase, width, height, loadLevel, platformLines]);
+  }, [phase, gameRunId, width, height, loadLevel, platformLines]);
 
   // Update flag sprites when raised
   useEffect(() => {
@@ -1404,6 +1419,97 @@ export const PoseGame: React.FC<PoseGameProps> = ({
   const handleRestart = () => {
     onRestart?.();
   };
+
+  const handleRetry = useCallback(() => {
+    // retry same exact level + same pose platforms
+    setGameWon(false);
+    setGameOver(false);
+    gameOverRef.current = false;
+    setGameSecondsLeft(gameTime);
+    keysRef.current = {
+      a: false,
+      d: false,
+      w: false,
+      left: false,
+      right: false,
+      up: false,
+    };
+
+    player1GroundedRef.current = false;
+    player2GroundedRef.current = false;
+    player1LockedPositionRef.current = null;
+    player2LockedPositionRef.current = null;
+    player1GroundNormalRef.current = null;
+    player2GroundNormalRef.current = null;
+
+    setFlagStates({});
+    flagsRef.current = [];
+    platformsRef.current = [];
+
+    setGameSecondsLeft(gameTime);
+
+    // forces the Matter "game phase" effect to cleanup and rebuild
+    setGameRunId((x) => x + 1);
+  }, []);
+
+  const handleReset = useCallback(() => {
+    keysRef.current = {
+      a: false,
+      d: false,
+      w: false,
+      left: false,
+      right: false,
+      up: false,
+    };
+
+    player1GroundedRef.current = false;
+    player2GroundedRef.current = false;
+    player1LockedPositionRef.current = null;
+    player2LockedPositionRef.current = null;
+    player1GroundNormalRef.current = null;
+    player2GroundNormalRef.current = null;
+
+    // reset everything and require re-pose
+    setGameWon(false);
+    setGameOver(false);
+    gameOverRef.current = false;
+
+    setFlagStates({});
+    flagsRef.current = [];
+    platformsRef.current = [];
+
+    setPlatformLines([]);
+    setCapturedPoseImage(null);
+
+    setCameraReady(false);
+    setSecondsLeft(poseTime);
+
+    // go back to ready so camera + preview comes back
+    setPhase("ready");
+  }, [poseTime]);
+
+  useEffect(() => {
+    if (phase !== "game") return;
+    if (gameWon) return;
+    if (gameOver) return;
+
+    setGameSecondsLeft(gameTime);
+
+    const id = window.setInterval(() => {
+      setGameSecondsLeft((s) => (s <= 1 ? 0 : s - 1));
+    }, 1000);
+
+    return () => window.clearInterval(id);
+  }, [phase, gameRunId]); // re-run on retry
+
+  useEffect(() => {
+    if (phase !== "game") return;
+    if (gameWon) return;
+    if (gameSecondsLeft !== 0) return;
+
+    setGameOver(true);
+    gameOverRef.current = true;
+  }, [phase, gameSecondsLeft, gameWon]);
 
   // Show loading state while model is loading
   const isLoading =
@@ -1562,10 +1668,18 @@ export const PoseGame: React.FC<PoseGameProps> = ({
       {phase === "game" && (
         <>
           <div
+            key={`game-${gameRunId}`} // ✅ force remount on retry
             ref={gameCanvasRef}
             className="absolute inset-0"
             style={{ width, height }}
           />
+
+          <div className="absolute top-16 right-4 z-30 rounded-xl bg-black/60 px-4 py-3 text-white">
+            <div className="text-xs opacity-80">Time Left</div>
+            <div className="text-3xl font-bold tabular-nums">
+              {gameSecondsLeft}
+            </div>
+          </div>
 
           {/* Download pose photo button */}
           {capturedPoseImage && (
@@ -1589,6 +1703,20 @@ export const PoseGame: React.FC<PoseGameProps> = ({
               Download Pose
             </button>
           )}
+          <div className="absolute top-16 left-4 z-30 flex gap-2">
+            <button
+              onClick={handleRetry}
+              className="px-3 py-2 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow"
+            >
+              Retry
+            </button>
+            <button
+              onClick={handleReset}
+              className="px-3 py-2 text-sm font-semibold bg-red-600 hover:bg-red-700 text-white rounded-lg shadow"
+            >
+              Reset
+            </button>
+          </div>
 
           {/* Controls hint */}
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 rounded-xl bg-black/60 px-4 py-2 text-white text-sm">
@@ -1596,6 +1724,26 @@ export const PoseGame: React.FC<PoseGameProps> = ({
             <span className="text-orange-400 font-bold">P2</span>: Arrow Keys
           </div>
         </>
+      )}
+
+      {gameOver && !gameWon && (
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/70 text-white">
+          <h1 className="text-4xl font-bold mb-4">Time’s up</h1>
+          <div className="flex gap-3">
+            <button
+              onClick={handleRetry}
+              className="px-6 py-3 text-lg font-bold bg-blue-500 hover:bg-blue-600 rounded-lg shadow"
+            >
+              Retry
+            </button>
+            <button
+              onClick={handleReset}
+              className="px-6 py-3 text-lg font-bold bg-red-500 hover:bg-red-600 rounded-lg shadow"
+            >
+              Reset & Re-pose
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Win Overlay */}
