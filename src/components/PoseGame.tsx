@@ -306,9 +306,7 @@ export const PoseGame: React.FC<PoseGameProps> = ({
   onJumpSfx,
   onWinSfx,
   onLoseSfx,
-  onFlagSfx,
-  onCountdownBeep,
-  onCountdownGo,
+  onFlagSfx
 }) => {
   // Use the persistent detector from context
   const {
