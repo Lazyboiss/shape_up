@@ -132,7 +132,7 @@ function GameContent() {
             height={900}
             onWin={handleWin}
             onRestart={handleRestart}
-            gameTime={level == differentLevels.length - 1 ? 1000 : 60}
+            gameTime={level > 2 ? 1000 : 60}
             onJumpSfx={() => sfxRef.current?.play("jump")}
             onWinSfx={() => sfxRef.current?.play("win")}
             onLoseSfx={() => sfxRef.current?.play("lose")}

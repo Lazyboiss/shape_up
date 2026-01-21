@@ -4,8 +4,19 @@ import * as poseDetection from "@tensorflow-models/pose-detection";
 import { ASSETS, SPRITE_SIZES } from "../gameAssets";
 import { drawKeypoints, drawSkeleton } from "@/lib/pose_utils";
 import { usePoseDetector } from "@/contexts/PoseDetectorContext";
+import { supabase } from "@/lib/supabase";
+import { QRCodeCanvas } from "qrcode.react";
 
 // ============ TYPES ============
+
+function dataUrlToBlob(dataUrl: string): Blob {
+  const [meta, base64] = dataUrl.split(",");
+  const mime = meta.match(/data:(.*?);base64/)?.[1] ?? "image/png";
+  const bytes = atob(base64);
+  const arr = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+}
 
 const PLATFORM_THICKNESS = 10;
 
@@ -306,8 +317,15 @@ export const PoseGame: React.FC<PoseGameProps> = ({
   onJumpSfx,
   onWinSfx,
   onLoseSfx,
-  onFlagSfx
+  onFlagSfx,
+  onCountdownGo,
+  onCountdownBeep,
 }) => {
+  const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadErr, setUploadErr] = useState<string | null>(null);
+  const uploadedOnceRef = useRef(false);
+
   // Use the persistent detector from context
   const {
     detector,
@@ -787,7 +805,15 @@ export const PoseGame: React.FC<PoseGameProps> = ({
     setSecondsLeft(poseTime);
 
     const id = window.setInterval(() => {
-      setSecondsLeft((s) => (s <= 1 ? 0 : s - 1));
+      setSecondsLeft((s) => {
+        if (s <= 1) {
+          onCountdownGo?.();
+          return 0;
+        } else {
+          onCountdownBeep?.();
+          return s - 1;
+        }
+      });
     }, 1000);
 
     return () => window.clearInterval(id);
@@ -1429,12 +1455,62 @@ export const PoseGame: React.FC<PoseGameProps> = ({
     }
   }, [flagStates, gameWon, phase, onWin]);
 
+  useEffect(() => {
+    if (!gameWon) return;
+    if (!capturedPoseImage) return;
+    if (uploadedOnceRef.current) return;
+
+    uploadedOnceRef.current = true;
+
+    (async () => {
+      setUploading(true);
+      setUploadErr(null);
+
+      try {
+        const blob = dataUrlToBlob(capturedPoseImage);
+
+        // Use a unique path
+        const filePath = `wins/${Date.now()}-${Math.random()
+          .toString(16)
+          .slice(2)}.png`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("pose-captures")
+          .upload(filePath, blob, {
+            contentType: "image/png",
+            upsert: false,
+          });
+
+        if (uploadError) throw uploadError;
+
+        // Public URL (bucket must be public)
+        const { data } = supabase.storage
+          .from("pose-captures")
+          .getPublicUrl(filePath);
+
+        const url = data.publicUrl;
+        setUploadedUrl(url);
+      } catch (e: any) {
+        setUploadErr(e?.message ?? "Upload failed");
+        // allow retry by resetting ref
+        uploadedOnceRef.current = false;
+      } finally {
+        setUploading(false);
+      }
+    })();
+  }, [gameWon, capturedPoseImage]);
+
   const handleRestart = () => {
     onRestart?.();
   };
 
   const handleRetry = useCallback(() => {
     // retry same exact level + same pose platforms
+    setUploadedUrl(null);
+    setUploadErr(null);
+    setUploading(false);
+    uploadedOnceRef.current = false;
+
     setGameWon(false);
     setGameOver(false);
     gameOverRef.current = false;
@@ -1466,6 +1542,11 @@ export const PoseGame: React.FC<PoseGameProps> = ({
   }, []);
 
   const handleReset = useCallback(() => {
+    setUploadedUrl(null);
+    setUploadErr(null);
+    setUploading(false);
+    uploadedOnceRef.current = false;
+
     keysRef.current = {
       a: false,
       d: false,
@@ -1773,13 +1854,53 @@ export const PoseGame: React.FC<PoseGameProps> = ({
 
           {/* Show captured pose */}
           {capturedPoseImage && (
-            <div className="mb-6 flex flex-col items-center">
-              <p className="text-sm opacity-80 mb-2">Your winning pose:</p>
-              <img
-                src={capturedPoseImage}
-                alt="Your pose"
-                className="w-md h-84 object-cover rounded-lg border-4 border-white/30 shadow-lg"
-              />
+            <div className="mb-6 flex items-center gap-5 justify-center">
+              <div>
+                <p className="text-sm opacity-80 mb-2">Your winning pose:</p>
+                <img
+                  src={capturedPoseImage}
+                  alt="Your pose"
+                  className="w-md h-84 object-cover rounded-lg border-4 border-white/30 shadow-lg"
+                />
+              </div>
+              <div className="mt-4 flex flex-col items-center gap-3">
+                {uploading && (
+                  <div className="text-sm opacity-90">Uploading photo…</div>
+                )}
+
+                {uploadErr && (
+                  <div className="text-sm text-red-300 text-center">
+                    <div>Upload failed: {uploadErr}</div>
+                    <button
+                      onClick={() => {}}
+                      className="mt-2 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 font-semibold"
+                    >
+                      Retry Upload
+                    </button>
+                  </div>
+                )}
+
+                {uploadedUrl && (
+                  <div className="flex flex-col items-center gap-2 bg-white/10 px-4 py-3 rounded-xl">
+                    <div className="text-sm opacity-90">
+                      Scan to view/download:
+                    </div>
+
+                    <div className="bg-white p-3 rounded-lg">
+                      <QRCodeCanvas value={uploadedUrl} size={180} />
+                    </div>
+
+                    <a
+                      href={uploadedUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs underline opacity-90"
+                    >
+                      Open link
+                    </a>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -1805,6 +1926,7 @@ export const PoseGame: React.FC<PoseGameProps> = ({
                 Save Photo
               </button>
             )}
+
             <button
               onClick={handleRestart}
               className="px-6 py-3 text-lg font-bold bg-green-500 hover:bg-green-600 rounded-lg shadow-lg transition-colors"
