@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import Matter from "matter-js";
 import { ASSETS, SPRITE_SIZES } from "../gameAssets";
 import { cn } from "@/lib/utils";
+import { Link } from "react-router-dom";
 
 const PLATFORM_THICKNESS = 10;
 
@@ -1227,6 +1228,20 @@ export const LevelCreator: React.FC<LevelCreatorProps> = ({
   };
 
   return (
+    <div>
+      {showCustomTools && (
+        <header className="flex flex-wrap items-center justify-between gap-4 p-4">
+          <div>
+            <h1 className="text-xl font-bold">Custom Level Generator</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Add platforms, both player spawns and flags, then click Test Level.
+            </p>
+          </div>
+          <Link to="/" className="rounded border px-4 py-2 hover:bg-accent">
+            Back to Menu
+          </Link>
+        </header>
+      )}
     <div style={{ position: "relative" }}>
       <input
         ref={fileInputRef}
@@ -1442,7 +1457,7 @@ export const LevelCreator: React.FC<LevelCreatorProps> = ({
                 fontWeight: "bold",
               }}
             >
-              {attemptStarted ? "Attempt Started" : "Attempt Clear"}
+              {attemptStarted ? "Attempt Started" : "Test Level"}
             </button>
 
             <button
@@ -1616,7 +1631,7 @@ export const LevelCreator: React.FC<LevelCreatorProps> = ({
             style={{ color: "#FF5722", fontWeight: "bold" }}
             className={showCustomTools ? "" : "hidden"}
           >
-            Design your level, then press "Attempt Clear" to start!
+            Design your level, then press "Test Level" to start!
           </div>
         ) : (
           <>
@@ -1641,6 +1656,7 @@ export const LevelCreator: React.FC<LevelCreatorProps> = ({
           Purple = Temporary (not saved) | Blue = Permanent | Brown = Ground
         </div>
       </div>
+    </div>
     </div>
   );
 };

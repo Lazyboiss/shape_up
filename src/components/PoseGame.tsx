@@ -4,7 +4,7 @@ import * as poseDetection from "@tensorflow-models/pose-detection";
 import { ASSETS, SPRITE_SIZES } from "../gameAssets";
 import { drawKeypoints, drawSkeleton } from "@/lib/pose_utils";
 import { usePoseDetector } from "@/contexts/PoseDetectorContext";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import { QRCodeCanvas } from "qrcode.react";
 
 // ============ TYPES ============
@@ -1467,6 +1467,7 @@ export const PoseGame: React.FC<PoseGameProps> = ({
       setUploadErr(null);
 
       try {
+        const supabase = getSupabase();
         const blob = dataUrlToBlob(capturedPoseImage);
 
         // Use a unique path

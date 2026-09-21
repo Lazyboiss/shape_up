@@ -1,4 +1,39 @@
-# React + TypeScript + Vite
+# Shape Up
+
+## Deploy to Vercel
+
+Import this repository with the repository root as the Root Directory. The
+committed `vercel.json` selects Vite, runs `npm run build`, serves `dist`, and
+rewrites client-side routes (including `/createLevel`) to `index.html`.
+
+To enable victory-photo sharing, add these environment variables in Vercel for
+the environments you deploy, then redeploy:
+
+- `VITE_SUPABASE_URL`: your Supabase project URL.
+- `VITE_SUPABASE_KEY`: your publishable key or legacy anon key. Never use a secret
+  or service-role key because Vite embeds these values in the browser bundle.
+
+The existing sharing flow also requires the `pose-captures` Storage bucket and
+appropriate upload/read policies. Without the variables, the game and level
+editor still run; photo sharing displays an error when used. `.env.local` is
+ignored by Git and is not automatically transferred to Vercel. Use `.env.example`
+as a reference for local configuration.
+
+Validate locally with `npm ci` and `npm run build` (`npm.cmd` on Windows if
+PowerShell blocks `npm.ps1`). A large-chunk warning does not fail the build.
+
+## Custom levels
+
+Click **TRY CUSTOM LEVEL GENERATOR** on the home screen, or visit `/createLevel`.
+Use the tools to add platforms, a spawn for each player, and a flag for each
+player. Click **Test Level** to play with WASD and arrow keys. After clearing the
+level, enter a filename and use **Save Level** to download its JSON; **Load Level**
+imports a saved file. **Back to Menu** returns home and discards the current
+unsaved editor session.
+
+---
+
+## Vite template reference
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 

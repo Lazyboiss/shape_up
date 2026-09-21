@@ -19,6 +19,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import Autoplay from "embla-carousel-autoplay";
 import { useMemo, useRef } from "react";
+import { Link } from "react-router-dom";
 
 type HomeProps = {
   setLevel: (level: number) => void;
@@ -150,6 +151,13 @@ export default function Home({ setLevel, startBgm }: HomeProps) {
           LEVEL 4
         </Button>
       </div>
+
+      <Button
+        asChild
+        className="mt-10 h-auto whitespace-normal rounded-none border-4 border-cyan-400 bg-black px-6 py-5 text-center text-sm font-bold text-cyan-400 shadow-[4px_4px_0px_0px_#22d3ee] transition-colors hover:bg-cyan-400 hover:text-black"
+      >
+        <Link to="/createLevel">TRY CUSTOM LEVEL GENERATOR</Link>
+      </Button>
     </div>
   );
 }
